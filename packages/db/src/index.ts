@@ -14,6 +14,10 @@ import { SqliteJobFetchRepository, SqliteJobSourceRepository } from "./repositor
 import { SqliteJobRepository } from "./repositories/jobs.js";
 import { SqliteApplicationFieldRepository } from "./repositories/application-fields.js";
 import { SqliteBrowserSessionRepository } from "./repositories/browser-sessions.js";
+import {
+  SqliteApprovalRepository,
+  SqliteSubmissionAttemptRepository,
+} from "./repositories/approvals.js";
 import { SqliteCoverLetterRepository } from "./repositories/cover-letters.js";
 import { SqliteResumeVersionRepository } from "./repositories/resumes.js";
 import {
@@ -70,6 +74,8 @@ export function createStore(opts: StoreOptions) {
     artifacts: new SqliteArtifactRepository(db, now),
     applications: new SqliteApplicationRepository(db, now),
     browserSessions: new SqliteBrowserSessionRepository(db, now),
+    approvals: new SqliteApprovalRepository(db, now),
+    submissionAttempts: new SqliteSubmissionAttemptRepository(db, now),
     tasks: new SqliteTaskRepository(db, now),
     profiles: new SqliteProfileRepository(db, opts.cipher, now),
     candidates: new SqliteCandidateRepository(db, opts.cipher, now),

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { ApprovalPanel } from "@/components/ApprovalPanel";
 import { BrowserPanel } from "@/components/BrowserPanel";
 import { Status, type StatusState } from "@/components/Status";
 import { api, errorText, STATE_TEXT, type AppAnswer, type AppDetail } from "@/lib/api";
@@ -195,14 +196,15 @@ function Workspace() {
     });
   }, [load]);
   useEffect(() => {
-    if (!d?.coverLetterDrafting && !d?.browser.busy) return;
+    const submitting = ["APPROVED_TO_SUBMIT", "SUBMITTING"].includes(d?.application.state ?? "");
+    if (!d?.coverLetterDrafting && !d?.browser.busy && !submitting) return;
     const t = setInterval(() => {
       void load().catch(() => undefined);
     }, 2500);
     return () => {
       clearInterval(t);
     };
-  }, [d?.coverLetterDrafting, d?.browser.busy, load]);
+  }, [d?.coverLetterDrafting, d?.browser.busy, d?.application.state, load]);
 
   const act = async (path: string, body?: unknown, ok = "Saved.") => {
     try {
@@ -244,7 +246,7 @@ function Workspace() {
       </h1>
       <p className="lede">
         Status: <strong>{STATE_TEXT[d.application.state] ?? d.application.state}</strong>. Nothing
-        is ever sent to the employer without your final approval, which arrives in a later phase.
+        is sent to the employer until you approve this application below.
       </p>
       <Status state={status} />
 
@@ -539,6 +541,29 @@ function Workspace() {
         ].includes(d.application.state)}
         onPrepare={() => void act(`${base}/browser/prepare`, undefined, "Opening the form…")}
         onClose={() => void act(`${base}/browser/close`, undefined, "Closing the browser…")}
+      />
+      <h2>6. Review and approve</h2>
+      <ApprovalPanel
+        state={d.application.state}
+        answers={d.answers}
+        browser={d.browser}
+        approval={d.approval}
+        onRefresh={() => void act(`${base}/review/refresh`, undefined, "Checking the form…")}
+        onApprove={() =>
+          void act(
+            `${base}/approve`,
+            { confirm: true },
+            "Approved. Submitting in the browser window…",
+          )
+        }
+        onRevoke={() => void act(`${base}/approval/revoke`, undefined, "Approval cancelled.")}
+        onResolve={(outcome) =>
+          void act(
+            `${base}/resolve`,
+            { outcome },
+            outcome === "submitted" ? "Marked as submitted." : "Marked as not submitted.",
+          )
+        }
       />
       <p className="hint">
         {d.answers.length === 0

@@ -1,5 +1,6 @@
 import type { BrowserContext, Route } from "playwright";
 import { isPublicIp } from "@career-agent/security";
+import { createGate } from "./submission/gate.js";
 
 export interface BrowserPolicy {
   /** Origins the top-level page may navigate to (the application's ATS origin(s)). */
@@ -18,7 +19,8 @@ export type BlockedReason =
   | "form_submission"
   | "submit_endpoint"
   | "scheme"
-  | "private_network";
+  | "private_network"
+  | "duplicate_write";
 
 export interface BlockedRequest {
   reason: BlockedReason;
@@ -63,6 +65,7 @@ export async function installRouteGuard(
   onBlocked: (b: BlockedRequest) => void,
 ): Promise<void> {
   const allowed = new Set(policy.allowedOrigins);
+  const gate = createGate(context);
   const frames = new Set([...policy.allowedOrigins, ...policy.subframeOrigins]);
   const block = async (route: Route, reason: BlockedReason) => {
     const req = route.request();
@@ -78,6 +81,17 @@ export async function installRouteGuard(
     // Fail closed: any error while deciding aborts the request.
     decide(route).catch(() => route.abort("blockedbyclient").catch(() => undefined)),
   );
+  /** Writes pass only while the submission service holds the gate open, and only to the bound origin. */
+  function gateAllows(url: URL, method: string): boolean {
+    return (
+      gate.open &&
+      method !== "GET" &&
+      method !== "HEAD" &&
+      gate.origin === url.origin &&
+      allowed.has(url.origin)
+    );
+  }
+
   async function decide(route: Route): Promise<void> {
     const req = route.request();
     let url: URL;
@@ -103,7 +117,24 @@ export async function installRouteGuard(
       }
       if (main && !allowed.has(url.origin)) return block(route, "navigation_off_allowlist");
       if (!main && !frames.has(url.origin)) return block(route, "frame_off_allowlist");
-      if (method !== "GET") return block(route, "form_submission");
+      if (method !== "GET" && !gateAllows(url, method)) return block(route, "form_submission");
+    }
+    if (gateAllows(url, method)) {
+      // One send per endpoint, made by Playwright itself with no retries: Chromium may silently re-send a POST
+      // after a dropped connection, which would be a retry the owner never approved.
+      const key = `${url.origin}${url.pathname}`.slice(0, 300);
+      if (gate.sent.some((w) => w.method === method && w.url === key))
+        return block(route, "duplicate_write");
+      gate.sent.push({ method, url: key, at: new Date().toISOString() });
+      let response;
+      try {
+        response = await route.fetch({ maxRedirects: 0, maxRetries: 0 });
+      } catch {
+        await route.abort("failed");
+        return;
+      }
+      await route.fulfill({ response });
+      return;
     }
     if (
       method !== "GET" &&

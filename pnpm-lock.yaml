@@ -121,6 +121,9 @@ importers:
       '@career-agent/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@career-agent/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@career-agent/sources':
         specifier: workspace:*
         version: link:../../packages/sources
@@ -128,9 +131,6 @@ importers:
       '@career-agent/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@career-agent/security':
-        specifier: workspace:*
-        version: link:../../packages/security
       '@career-agent/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit

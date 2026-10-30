@@ -105,9 +105,19 @@ Playwright headed driver; isolated contexts; route allowlist; snapshots + redact
   - `pnpm test:browser` (ADR-030).
 - **Not done / deferred:** no model drives the toolbox yet (Phase 9); preparation is deterministic. Because every write is blocked while preparing, forms that upload files or autosave through background requests may show errors; the owner then attaches or saves those parts in the window. Adapter submit-endpoint patterns and `submitControl`/`isConfirmation` exist for Phase 8 but are not verified against live sites. Only same-origin iframes are filled. Questions are synced per visible step, so later steps' questions appear only after Continue.
 
-## Phase 8 — Approval and submission ☐
+## Phase 8 — Approval and submission ☑
 
 Review UI; binding hashes; token issue/consume/revoke; SubmissionService; confirmation predicates; uncertain handling; full replay/mutation matrix (APPROVAL_MODEL §5).
+
+- **Done (2026-10-30):** unit/integration suite and build green; 21 browser tests green, 11 of them the APPROVAL_MODEL §5 matrix against the local fixture form (each checks how many writes reached the fixture server).
+  - `packages/security/approval`: `ApprovalService` (issue / verify / atomic consume + `SUBMITTING` + attempt row in one transaction / revoke), HMAC with `HKDF(LOCAL_SESSION_SECRET, "approval-v1")`, token stored as SHA-256 only, `answerSetHash`, `buildBindingMaterial` (one builder for the API and the worker), token transport sealed for the worker task.
+  - `@career-agent/browser/submission` (ADR-033): `SubmissionService` (verify → re-snapshot → recompute binding → consume → open the one-shot write gate for the bound origin → click the bound control once → classify) and the write gate. Writes during the gate are sent once by Playwright with no retries or automatic redirects; repeats are blocked.
+  - Worker: review snapshots (form hash, the single submit control, a checklist that includes "changed on the page" checks and unticked owner-only boxes); `refresh_review` and `submit_application` tasks (never retried); approvals left active by a previous worker are revoked at startup.
+  - Domain: `SUBMITTING → READY_FOR_REVIEW` only for a form the site rejected before anything was sent (ADR-034); owner edits revoke an active approval and are refused once submission has started; `submissionMaterials` re-verifies approved files against their hashes.
+  - DB migration 0010: `submission_attempts` (one per approval, only for a consumed approval, append-only once finished) and `browser_sessions.review`.
+  - API: refresh review, approve (`{confirm: true}`; checks state, answers, materials, a live reviewed form with an empty checklist that is no older than the approval TTL, one submit control, the origin; then issues and queues), revoke, resolve an uncertain submission (owner only). UI: "Review and approve" with an explicit confirmation, progress, outcome evidence, and the uncertain-resolution buttons.
+  - `OPERATING_MODE` setting (default `review-each`); other modes cannot issue approvals or submit.
+- **Not done / deferred:** The approve endpoint's success path is tested through the same builder in the worker browser tests, not through HTTP. The review UI has not been checked in the running app. Confirmation predicates are text-based and only verified against fixtures. Forms that send their submission to another origin, or as several requests to the same endpoint, end as `SUBMISSION_UNCERTAIN`.
 
 ## Phase 9 — Hybrid orchestration ☐
 

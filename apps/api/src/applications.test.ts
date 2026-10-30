@@ -164,6 +164,21 @@ describe("applications API", () => {
     expect(store.tasks.hasActive(`browser:${id}:`)).toBe(false);
     const close = await call("POST", `/api/v1/applications/${id}/browser/close`);
     expect(close.json()).toMatchObject({ queued: true });
+    // Phase 8: approval needs an application ready for review, a live reviewed form, and explicit confirmation.
+    expect(detail.json()).toMatchObject({ approval: { active: null, attempt: null } });
+    expect((await call("POST", `/api/v1/applications/${id}/approve`, {})).statusCode).toBe(400);
+    const approve = await call("POST", `/api/v1/applications/${id}/approve`, { confirm: true });
+    expect(approve.statusCode).toBe(403);
+    expect(store.approvals.active(id)).toBeNull();
+    expect(
+      (await call("POST", `/api/v1/applications/${id}/resolve`, { outcome: "submitted" }))
+        .statusCode,
+    ).toBe(403);
+    expect((await call("POST", `/api/v1/applications/${id}/approval/revoke`)).json()).toMatchObject(
+      {
+        revoked: false,
+      },
+    );
     const drafts = await call("POST", `/api/v1/applications/${id}/draft-answers`);
     expect(drafts.json<{ note: string }>().note).toMatch(/No AI provider/);
     const list = await call("GET", "/api/v1/applications");

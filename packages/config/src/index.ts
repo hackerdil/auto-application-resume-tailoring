@@ -92,6 +92,10 @@ const EnvSchema = z.object({
   BROWSER_MAX_STEPS: int(40, 1, 500),
   BROWSER_TIMEOUT_MS: int(600_000, 10_000, 3_600_000),
   APPROVAL_TTL_SECONDS: int(300, 30, 900),
+  /** research-only · prepare · review-each (one approval per application) · dry-run. Submission needs review-each. */
+  OPERATING_MODE: z
+    .enum(["research-only", "prepare", "review-each", "dry-run"])
+    .default("review-each"),
   SCREENSHOT_RETENTION_DAYS: int(7, 0, 365),
   STORE_REDACTED_SCREENSHOTS: bool(false),
 

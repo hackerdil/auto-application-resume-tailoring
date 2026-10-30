@@ -34,6 +34,7 @@ const EXPECTED_TABLES = [
   "resume_templates",
   "resume_versions",
   "saved_answers",
+  "submission_attempts",
   "tasks",
   "users",
 ];
@@ -87,6 +88,10 @@ describe("migrations", () => {
       "resume_versions_immutable",
       "resume_versions_no_delete",
       "resume_versions_status_valid",
+      "submission_attempts_final",
+      "submission_attempts_needs_consumed_approval",
+      "submission_attempts_no_delete",
+      "submission_attempts_outcome_valid",
       "users_single_owner",
     ]);
     const applied = sqlite.prepare("SELECT COUNT(*) AS n FROM __drizzle_migrations").get() as {

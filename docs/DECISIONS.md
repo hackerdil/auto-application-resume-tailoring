@@ -204,3 +204,23 @@ Each entry: context → decision → consequences. Status is `accepted` unless s
 - **Date:** 2026-10-30
 - **Decision:** `prepareForm` runs a fixed loop: inspect → read questions → sync them to the application → fill finalized answers through the toolbox → check readiness → Next. It stops for the owner on a password or CAPTCHA, missing required answers, validation errors, or required fields only the owner completes. The worker keeps the visible window open between passes, so the owner can sign in or answer and press **Continue**. Sessions left open by a previous worker are marked closed at startup. Only a pass that finds the whole form ready moves the application to `READY_FOR_REVIEW`. Changing any answer or material afterwards moves it back to `PREPARING`.
 - **Consequences:** Preparation works without any AI provider. In Phase 9 a model may drive the same toolbox, under the same limits.
+
+## ADR-033 — Submission in the prepared window through a one-shot write gate
+
+- **Date:** 2026-10-30
+- **Context:** ADR-031 planned a separate context for submission. But the filled form, the owner's ticked boxes, and their sign-in exist only in the prepared window, and the approval binds that exact form.
+- **Decision:** Submission reuses the prepared context. Its route guard owns a write gate that starts closed. Only `@career-agent/browser/submission` can reach the gate (a module-level registry); ESLint forbids the toolbox, preparation, and `packages/ai` from importing that path. The service opens the gate only after the token has been consumed, only for the bound origin, and only around the single click.
+
+  While the gate is open, each write is sent once by Playwright itself (`route.fetch`, no retries, no automatic redirects) and handed to the page. A second write to the same endpoint is blocked. This matters because, in testing, Chromium re-sent a POST on its own after a dropped connection.
+
+- **Consequences:** A submission that needs writes to another origin, or several writes to one endpoint, does not complete and ends as `SUBMISSION_UNCERTAIN`. That is preferred over widening the gate.
+
+## ADR-034 — Approval flow: worker review snapshot, approve-and-queue, owner-only resolution
+
+- **Date:** 2026-10-30
+- **Decision:**
+  - **Review snapshot:** the worker owns the browser, so it takes the review snapshot (form hash, submit control, open checklist). It does so after a "ready" pass and when the owner presses Refresh review.
+  - **Approve:** approval is refused unless that snapshot is from a live session, has an empty checklist, and is no older than `APPROVAL_TTL_SECONDS`. The API then builds the binding with the same builder the worker uses before clicking, issues the token, and queues one `submit_application` task.
+  - **Token in transit:** the task carries the token sealed with a key derived from `LOCAL_SESSION_SECRET` and bound to the approval id. The database keeps only its hash.
+  - **Outcomes:** confirmation text → `SUBMITTED`. A same-page validation error with zero writes sent → back to `READY_FOR_REVIEW` (new guarded edge; nothing reached the employer). Anything else → `SUBMISSION_UNCERTAIN`, which only the owner resolves. Nothing is retried.
+- **Consequences:** Approving requires a fresh look at the live form. A worker restart revokes any outstanding approval.

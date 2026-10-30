@@ -12,6 +12,7 @@ export * from "./schemas/job.js";
 export * from "./schemas/match.js";
 export * from "./schemas/resume.js";
 export * from "./schemas/application.js";
+export * from "./schemas/approval.js";
 export * from "./schemas/audit.js";
 export * from "./schemas/run.js";
 export * from "./schemas/candidate.js";

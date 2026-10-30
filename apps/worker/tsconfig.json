@@ -26,13 +26,13 @@
       "path": "../../packages/observability"
     },
     {
+      "path": "../../packages/security"
+    },
+    {
       "path": "../../packages/sources"
     },
     {
       "path": "../../packages/ai"
-    },
-    {
-      "path": "../../packages/security"
     },
     {
       "path": "../../packages/testkit"

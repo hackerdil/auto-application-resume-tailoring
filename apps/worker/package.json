@@ -10,11 +10,11 @@
     "@career-agent/documents": "workspace:*",
     "@career-agent/domain": "workspace:*",
     "@career-agent/observability": "workspace:*",
+    "@career-agent/security": "workspace:*",
     "@career-agent/sources": "workspace:*"
   },
   "devDependencies": {
     "@career-agent/ai": "workspace:*",
-    "@career-agent/security": "workspace:*",
     "@career-agent/testkit": "workspace:*"
   },
   "scripts": {

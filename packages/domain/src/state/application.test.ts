@@ -159,3 +159,28 @@ describe("application state machine", () => {
     }).toThrow();
   });
 });
+
+describe("rejected-before-send edge", () => {
+  it("returns to review only for the system with evidence that nothing was sent", () => {
+    expect(() => {
+      assertApplicationTransition("SUBMITTING", "READY_FOR_REVIEW", {
+        actor: "system",
+        mode: "review-each",
+      });
+    }).toThrow(InvalidTransitionError);
+    expect(() => {
+      assertApplicationTransition("SUBMITTING", "READY_FOR_REVIEW", {
+        actor: "user",
+        mode: "review-each",
+        rejectedBeforeSend: true,
+      });
+    }).toThrow(InvalidTransitionError);
+    expect(() => {
+      assertApplicationTransition("SUBMITTING", "READY_FOR_REVIEW", {
+        actor: "system",
+        mode: "review-each",
+        rejectedBeforeSend: true,
+      });
+    }).not.toThrow();
+  });
+});

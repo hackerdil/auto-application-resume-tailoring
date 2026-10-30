@@ -5,3 +5,4 @@ export * from "./url-policy.js";
 export * from "./path-safety.js";
 export * from "./csv.js";
 export * from "./safe-http.js";
+export * from "./approval.js";

@@ -6,6 +6,8 @@ export interface FormFixtureServer {
   origin: string;
   /** Every non-GET request the server received (a submission attempt reaching the "employer"). */
   writes: { method: string; path: string; at: string }[];
+  /** How the "employer" answers writes: confirm (303 to a thank-you page) or drop the connection. */
+  mode: "confirm" | "drop";
   close(): Promise<void>;
 }
 
@@ -22,11 +24,16 @@ const PAGES: Record<string, string> = {
 /** Local, fictional ATS forms (fixtures/ats-forms) on 127.0.0.1. Records any write so tests can prove nothing was submitted. */
 export async function startFormFixtureServer(): Promise<FormFixtureServer> {
   const writes: FormFixtureServer["writes"] = [];
+  const state: { mode: FormFixtureServer["mode"] } = { mode: "confirm" };
   const server: Server = createServer((req: IncomingMessage, res) => {
     const path = (req.url ?? "/").split("?")[0] ?? "/";
     if (req.method !== "GET" && req.method !== "HEAD") {
       writes.push({ method: req.method ?? "?", path, at: new Date().toISOString() });
       req.resume();
+      if (state.mode === "drop") {
+        req.socket.destroy();
+        return;
+      }
       res.writeHead(303, { location: "/confirmation" }).end();
       return;
     }
@@ -44,6 +51,12 @@ export async function startFormFixtureServer(): Promise<FormFixtureServer> {
   return {
     origin: `http://127.0.0.1:${port}`,
     writes,
+    get mode() {
+      return state.mode;
+    },
+    set mode(m) {
+      state.mode = m;
+    },
     close: () =>
       new Promise<void>((r) =>
         server.close(() => {

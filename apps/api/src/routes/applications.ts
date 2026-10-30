@@ -7,12 +7,20 @@ import {
   coverLetterKeyPrefix,
   PREPARE_APPLICATION_TASK,
   PolicyError,
+  REFRESH_REVIEW_TASK,
+  SUBMIT_APPLICATION_TASK,
   DRAFT_COVER_LETTER_TASK,
   FieldType,
   type ApplicationOverview,
   type ApplicationService,
 } from "@career-agent/domain";
 import type { Store } from "@career-agent/db";
+import type { FileArtifactStore } from "@career-agent/documents";
+import {
+  buildBindingMaterial,
+  sealApprovalSecret,
+  type ApprovalService,
+} from "@career-agent/security";
 import { parseBody } from "../http-errors.js";
 import { idempotent } from "../idempotency.js";
 import type { LocalGuard } from "../local-guard.js";
@@ -21,6 +29,8 @@ const IdParams = z.object({ id: z.uuidv7() });
 const FieldParams = z.object({ id: z.uuidv7(), fieldId: z.uuidv7() });
 const LetterParams = z.object({ id: z.uuidv7(), letterId: z.uuidv7() });
 const IdQuery = z.object({ id: z.uuidv7() });
+const ApproveBody = z.object({ confirm: z.literal(true) });
+const ResolveBody = z.object({ outcome: z.enum(["submitted", "failed"]) });
 const CreateBody = z.object({ jobId: z.string().min(3).max(400) });
 const ResumeBody = z.object({ resumeVersionId: z.uuidv7() });
 const SkipBody = z.object({ skip: z.boolean() });
@@ -52,6 +62,22 @@ const PREPARABLE = new Set([
   "READY_FOR_REVIEW",
 ]);
 
+function approvalState(store: Store, applicationId: string) {
+  const active = store.approvals.active(applicationId);
+  const attempt = store.submissionAttempts.latest(applicationId);
+  return {
+    active: active ? { id: active.id, expiresAt: active.expiresAt } : null,
+    attempt: attempt
+      ? {
+          outcome: attempt.outcome,
+          startedAt: attempt.startedAt,
+          endedAt: attempt.endedAt,
+          evidence: attempt.evidence,
+        }
+      : null,
+  };
+}
+
 function browserState(store: Store, applicationId: string) {
   const rec = store.browserSessions.latest(applicationId);
   const [message, ...checklist] = (rec?.handoffReason ?? "").split("\n").filter(Boolean);
@@ -67,6 +93,14 @@ function browserState(store: Store, applicationId: string) {
           checklist,
           startedAt: rec.startedAt,
           endedAt: rec.endedAt,
+          review: rec.review
+            ? {
+                takenAt: rec.review.takenAt,
+                checklist: rec.review.checklist,
+                submitButton: rec.review.submitControl?.accessibleName ?? null,
+                url: rec.review.url,
+              }
+            : null,
         }
       : null,
   };
@@ -100,8 +134,20 @@ function present(o: ApplicationOverview, store: Store) {
 
 export function registerApplicationRoutes(
   app: FastifyInstance,
-  d: { guard: LocalGuard; store: Store; ownerId: string; applications: ApplicationService },
+  d: {
+    guard: LocalGuard;
+    store: Store;
+    ownerId: string;
+    applications: ApplicationService;
+    /** Phase 8 approvals; null when LOCAL_SESSION_SECRET is missing. */
+    approvals: ApprovalService | null;
+    files: FileArtifactStore;
+    sessionSecret: Buffer;
+    ttlSeconds: number;
+    now?: () => number;
+  },
 ) {
+  const now = d.now ?? Date.now;
   app.get("/api/v1/applications", (req) => {
     d.guard.requireSession(req);
     return {
@@ -161,7 +207,119 @@ export function registerApplicationRoutes(
       coverLetters,
       coverLetterDrafting: d.store.tasks.hasActive(coverLetterKeyPrefix(id)),
       browser: browserState(d.store, id),
+      approval: approvalState(d.store, id),
     };
+  });
+
+  // Phase 8: re-snapshot the filled form (after the owner ticked consent boxes, for example).
+  app.post("/api/v1/applications/:id/review/refresh", (req, reply) => {
+    d.guard.requireSession(req);
+    const { id } = parseBody(IdParams, req.params);
+    return idempotent(d.store.idempotency, req, reply, null, () => {
+      d.applications.overview(d.ownerId, id); // ownership check
+      if (d.store.tasks.hasActive(browserKeyPrefix(id)))
+        return { statusCode: 202, body: { queued: false, alreadyRunning: true } };
+      const t = d.store.tasks.enqueue(
+        REFRESH_REVIEW_TASK,
+        { applicationId: id, traceId: req.ctx.traceId },
+        `${browserKeyPrefix(id)}review:${req.ctx.traceId}`,
+      );
+      return { statusCode: 202, body: { queued: true, taskId: t.id } };
+    });
+  });
+
+  // The owner's approval of exactly this application, form, answers, and files (docs/APPROVAL_MODEL.md).
+  app.post("/api/v1/applications/:id/approve", (req, reply) => {
+    d.guard.requireSession(req);
+    const { id } = parseBody(IdParams, req.params);
+    const body = parseBody(ApproveBody, req.body);
+    return idempotent(d.store.idempotency, req, reply, body, () => {
+      if (!d.approvals) throw new PolicyError("Approvals need LOCAL_SESSION_SECRET.");
+      const o = d.applications.overview(d.ownerId, id);
+      if (o.application.state !== "READY_FOR_REVIEW")
+        throw new PolicyError("Only an application ready for review can be approved.");
+      if (!o.answersComplete || !o.materialsReady)
+        throw new PolicyError("Some answers or materials still need attention.");
+      if (d.store.tasks.hasActive(browserKeyPrefix(id)))
+        throw new PolicyError("The browser is still working. Try again in a moment.");
+      const session = d.store.browserSessions.latest(id);
+      const review = session?.review ?? null;
+      if (!session || session.endedAt || session.status !== "ready" || !review)
+        throw new PolicyError("Open the form with Prepare in browser and let it finish first.");
+      if (now() - Date.parse(review.takenAt) > d.ttlSeconds * 1000)
+        throw new PolicyError("The review is out of date. Press Refresh review, then approve.");
+      if (review.checklist.length)
+        throw new PolicyError(`The form still needs attention: ${review.checklist[0] ?? ""}`);
+      if (!review.submitControl)
+        throw new PolicyError("Career Agent could not identify the submit button on this form.");
+      const m = d.applications.submissionMaterials(d.ownerId, id, (artifactId, sha256) => {
+        const art = d.store.artifacts.get(artifactId);
+        if (!art || art.sha256 !== sha256) throw new PolicyError("An approved file is missing.");
+        d.files.read(art.storagePath, sha256);
+      });
+      if (new URL(m.job.applyUrl ?? m.job.sourceUrl).origin !== review.origin)
+        throw new PolicyError("The form is on a different site than the job posting.");
+      const { approvalId, secret, binding } = d.approvals.issue(
+        d.ownerId,
+        buildBindingMaterial({
+          applicationId: id,
+          ownerId: d.ownerId,
+          job: m.job,
+          answers: m.answers,
+          resumeHash: m.resumeHash,
+          coverLetterHash: m.coverLetterHash,
+          formSnapshotHash: review.formSnapshotHash,
+          origin: review.origin,
+          submitControl: review.submitControl,
+        }),
+        req.ctx.traceId,
+      );
+      d.store.tasks.enqueue(
+        SUBMIT_APPLICATION_TASK,
+        {
+          applicationId: id,
+          approvalId,
+          sealedSecret: sealApprovalSecret(d.sessionSecret, approvalId, secret),
+          traceId: req.ctx.traceId,
+        },
+        `${browserKeyPrefix(id)}submit:${approvalId}`,
+      );
+      return { statusCode: 202, body: { approvalId, expiresAt: binding.expiresAt } };
+    });
+  });
+
+  app.post("/api/v1/applications/:id/approval/revoke", (req, reply) => {
+    d.guard.requireSession(req);
+    const { id } = parseBody(IdParams, req.params);
+    return idempotent(d.store.idempotency, req, reply, null, () => {
+      if (!d.approvals) throw new PolicyError("Approvals need LOCAL_SESSION_SECRET.");
+      d.applications.overview(d.ownerId, id); // ownership check
+      const revoked = d.approvals.revoke(id, "cancelled by owner", req.ctx.traceId);
+      return { statusCode: 200, body: { revoked } };
+    });
+  });
+
+  // Only the owner settles an uncertain submission, from what they see in the window or their email.
+  app.post("/api/v1/applications/:id/resolve", (req, reply) => {
+    d.guard.requireSession(req);
+    const { id } = parseBody(IdParams, req.params);
+    const body = parseBody(ResolveBody, req.body);
+    return idempotent(d.store.idempotency, req, reply, body, () => {
+      const o = d.applications.overview(d.ownerId, id);
+      if (o.application.state !== "SUBMISSION_UNCERTAIN")
+        throw new PolicyError("Only an uncertain submission can be resolved.");
+      const a = d.store.applications.transition(
+        id,
+        body.outcome === "submitted" ? "SUBMITTED" : "FAILED",
+        {
+          actor: "user",
+          mode: "review-each",
+          traceId: req.ctx.traceId,
+          metadata: { resolvedBy: "owner" },
+        },
+      );
+      return { statusCode: 200, body: { application: a } };
+    });
   });
 
   // Phase 7: the worker opens a visible browser and prepares the form; it never submits.

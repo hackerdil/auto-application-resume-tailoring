@@ -424,6 +424,24 @@ export interface AppDetail extends AppOverview {
   }[];
   coverLetterDrafting: boolean;
   browser: BrowserState;
+  approval: ApprovalState;
+}
+
+export interface ApprovalState {
+  active: { id: string; expiresAt: string } | null;
+  attempt: {
+    outcome: "submitted" | "uncertain" | "rejected_before_send" | "failed" | null;
+    startedAt: string;
+    endedAt: string | null;
+    evidence: {
+      url: string | null;
+      title: string;
+      headings: string[];
+      errors: string[];
+      writesSent: number;
+      note: string;
+    } | null;
+  } | null;
 }
 
 export interface BrowserState {
@@ -437,6 +455,12 @@ export interface BrowserState {
     checklist: string[];
     startedAt: string;
     endedAt: string | null;
+    review: {
+      takenAt: string;
+      checklist: string[];
+      submitButton: string | null;
+      url: string;
+    } | null;
   } | null;
 }
 
@@ -449,6 +473,8 @@ export const STATE_TEXT: Record<string, string> = {
   PREPARING: "preparing the form",
   AWAITING_USER_INPUT: "waiting for your answers",
   READY_FOR_REVIEW: "ready for final review",
+  APPROVED_TO_SUBMIT: "approved — submitting",
+  SUBMITTING: "submitting",
   SUBMITTED: "submitted",
   SUBMISSION_UNCERTAIN: "submission uncertain",
   FAILED: "failed",

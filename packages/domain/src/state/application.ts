@@ -14,8 +14,9 @@ export const APPLICATION_TRANSITIONS: Readonly<
   AWAITING_USER_INPUT: ["PREPARING", "WITHDRAWN"],
   READY_FOR_REVIEW: ["APPROVED_TO_SUBMIT", "PREPARING", "WITHDRAWN"],
   APPROVED_TO_SUBMIT: ["SUBMITTING", "READY_FOR_REVIEW", "WITHDRAWN"],
-  // No WITHDRAWN from SUBMITTING: the click may already have happened.
-  SUBMITTING: ["SUBMITTED", "SUBMISSION_UNCERTAIN", "FAILED"],
+  // No WITHDRAWN from SUBMITTING: the click may already have happened. READY_FOR_REVIEW only when the site
+  // rejected the form before anything was sent (validation error, no request left the browser).
+  SUBMITTING: ["SUBMITTED", "SUBMISSION_UNCERTAIN", "FAILED", "READY_FOR_REVIEW"],
   SUBMISSION_UNCERTAIN: ["SUBMITTED", "FAILED"],
   SUBMITTED: [],
   FAILED: [],
@@ -40,6 +41,8 @@ export interface ApplicationTransitionContext {
   answerSetComplete?: boolean;
   activeApprovalId?: string | null;
   confirmationEvidence?: string | null;
+  /** The site showed a validation error and no request left the browser after the click. */
+  rejectedBeforeSend?: boolean;
 }
 
 type Guard = (ctx: ApplicationTransitionContext) => string | null;
@@ -61,6 +64,12 @@ const GUARDS: Partial<Record<`${ApplicationState}->${ApplicationState}`, Guard>>
     if (c.actor !== "system")
       return "only the deterministic submission service may start submitting";
     return c.activeApprovalId ? null : "an active approval token is required";
+  },
+  "SUBMITTING->READY_FOR_REVIEW": (c) => {
+    if (c.actor !== "system") return "only the submission service reports a rejected form";
+    return c.rejectedBeforeSend === true
+      ? null
+      : "only a form rejected before anything was sent returns to review";
   },
   "SUBMITTING->SUBMITTED": (c) =>
     c.confirmationEvidence ? null : "SUBMITTED requires observed confirmation evidence",

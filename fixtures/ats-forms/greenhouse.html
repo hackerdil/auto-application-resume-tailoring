@@ -6,7 +6,7 @@
 <form id="application-form" action="/submit" method="post">
   <p><label for="first_name">First Name *</label><input id="first_name" name="first_name" required></p>
   <p><label for="last_name">Last Name *</label><input id="last_name" name="last_name" required></p>
-  <p><label for="email">Email *</label><input id="email" name="email" type="email" required></p>
+  <p><label for="email">Email *</label><input id="email" name="email" type="email" required><span id="email-error" role="alert"></span></p>
   <p><label for="phone">Phone</label><input id="phone" name="phone" type="tel"></p>
   <p><label for="resume">Resume/CV *</label><input id="resume" name="resume" type="file" accept=".pdf,.docx" required></p>
   <p><label for="cover_letter">Cover Letter</label><input id="cover_letter" name="cover_letter" type="file" accept=".pdf,.docx"></p>
@@ -24,4 +24,15 @@
   <input type="text" name="website_hp" style="display:none" tabindex="-1" autocomplete="off">
   <button type="submit">Submit Application</button>
 </form>
+<script>
+  // Fixture hook: tests set window.__fixtureReject to simulate the site's own validation refusing the form.
+  document.getElementById("application-form").addEventListener("submit", (ev) => {
+    if (!window.__fixtureReject) return;
+    ev.preventDefault();
+    const email = document.getElementById("email");
+    email.setAttribute("aria-invalid", "true");
+    email.setAttribute("aria-describedby", "email-error");
+    document.getElementById("email-error").textContent = "Please check your email address.";
+  });
+</script>
 </body></html>

@@ -5,6 +5,7 @@ import {
   type BrowserSessionRecord,
   type BrowserSessionRepository,
   type BrowserSessionStatus,
+  type ReviewSnapshot,
 } from "@career-agent/domain";
 import type { Db } from "../database.js";
 import { browserSessions } from "../schema.js";
@@ -73,6 +74,21 @@ export class SqliteBrowserSessionRepository implements BrowserSessionRepository 
       .run();
   }
 
+  recordReview(id: string, review: ReviewSnapshot): BrowserSessionRecord {
+    this.db
+      .update(browserSessions)
+      .set({
+        review: {
+          ...review,
+          url: stripUrl(review.url) ?? "",
+          checklist: review.checklist.map((c) => c.slice(0, 300)).slice(0, 50),
+        },
+      })
+      .where(eq(browserSessions.id, id))
+      .run();
+    return this.get(id);
+  }
+
   latest(applicationId: string): BrowserSessionRecord | null {
     const row = this.db
       .select()
@@ -109,6 +125,7 @@ export class SqliteBrowserSessionRepository implements BrowserSessionRepository 
       lastUrl: row.lastUrl,
       startedAt: toIso(row.startedAt),
       endedAt: toIsoOrNull(row.endedAt),
+      review: (row.review as ReviewSnapshot | null) ?? null,
     };
   }
 }

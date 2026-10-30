@@ -376,6 +376,19 @@ export interface BrowserSessionRecord {
   lastUrl: string | null;
   startedAt: string;
   endedAt: string | null;
+  /** Phase 8: the latest review snapshot of the filled form, taken by the worker. */
+  review: ReviewSnapshot | null;
+}
+
+export interface ReviewSnapshot {
+  formSnapshotHash: string;
+  url: string;
+  origin: string;
+  /** Null when the adapter found no single, unambiguous submit control. */
+  submitControl: import("./schemas/approval.js").SubmitControlIdentity | null;
+  /** Readiness items still open when the snapshot was taken (empty = approvable). */
+  checklist: string[];
+  takenAt: string;
 }
 
 export interface BrowserSessionRepository {
@@ -388,7 +401,58 @@ export interface BrowserSessionRepository {
     patch: Partial<Pick<BrowserSessionRecord, "status" | "handoffReason" | "steps" | "lastUrl">>,
   ): BrowserSessionRecord;
   end(id: string, status: "closed" | "failed"): void;
+  recordReview(id: string, review: ReviewSnapshot): BrowserSessionRecord;
   latest(applicationId: string): BrowserSessionRecord | null;
   /** Marks sessions left open by a previous worker process as closed; returns how many. */
   endAllOpen(): number;
+}
+
+export interface ApprovalRecord {
+  id: string;
+  applicationId: string;
+  tokenHash: string;
+  bindingJson: string;
+  bindingMac: string;
+  issuedAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  revokedAt: string | null;
+  revokeReason: string | null;
+}
+
+export interface ApprovalRepository {
+  /** Revokes any active approval for the application, then stores the new one. */
+  issue(
+    input: Omit<ApprovalRecord, "id" | "consumedAt" | "revokedAt" | "revokeReason"> & {
+      id: string;
+    },
+  ): ApprovalRecord;
+  get(id: string): ApprovalRecord | null;
+  active(applicationId: string): ApprovalRecord | null;
+  /** Revokes an active approval; returns false when it was already consumed, revoked, or unknown. */
+  revoke(id: string, reason: string): boolean;
+  revokeAllActive(applicationId: string, reason: string): number;
+  /** Single conditional UPDATE: true only when exactly one active, unexpired row was consumed. */
+  consume(id: string, nowIso: string): boolean;
+}
+
+export interface SubmissionAttemptRecord {
+  id: string;
+  applicationId: string;
+  approvalId: string;
+  startedAt: string;
+  endedAt: string | null;
+  outcome: import("./schemas/approval.js").SubmissionOutcome | null;
+  evidence: import("./schemas/approval.js").SubmissionEvidence | null;
+}
+
+export interface SubmissionAttemptRepository {
+  /** At most one attempt per approval (unique). */
+  start(applicationId: string, approvalId: string): SubmissionAttemptRecord;
+  finish(
+    id: string,
+    outcome: import("./schemas/approval.js").SubmissionOutcome,
+    evidence: import("./schemas/approval.js").SubmissionEvidence,
+  ): SubmissionAttemptRecord;
+  latest(applicationId: string): SubmissionAttemptRecord | null;
 }

@@ -7,6 +7,8 @@ import {
   DRAFT_COVER_LETTER_TASK,
   PREPARE_APPLICATION_TASK,
   CLOSE_BROWSER_TASK,
+  REFRESH_REVIEW_TASK,
+  SUBMIT_APPLICATION_TASK,
   type ApplicationService,
   type DiscoveryService,
   type MatchingService,
@@ -15,6 +17,7 @@ import {
 } from "@career-agent/domain";
 import { newTraceId, type Logger } from "@career-agent/observability";
 import type { BrowserPreparer } from "./preparer.js";
+import type { Submitter } from "./submitter.js";
 
 export const MAX_DISCOVERY_ATTEMPTS = 3;
 
@@ -26,6 +29,8 @@ export interface WorkerDeps {
   applications?: ApplicationService;
   /** Phase 7: the visible preparation browsers this worker owns. */
   preparer?: BrowserPreparer;
+  /** Phase 8: runs approved submissions in the prepared windows. */
+  submitter?: Submitter;
   ownerId: string;
   workerId: string;
   logger: Logger;
@@ -80,6 +85,8 @@ export class Worker {
       else if (task.kind === DRAFT_COVER_LETTER_TASK) await this.coverLetter(task, log);
       else if (task.kind === PREPARE_APPLICATION_TASK) await this.prepare(task, log);
       else if (task.kind === CLOSE_BROWSER_TASK) await this.closeBrowser(task);
+      else if (task.kind === REFRESH_REVIEW_TASK) await this.refreshReview(task, log);
+      else if (task.kind === SUBMIT_APPLICATION_TASK) await this.submit(task, log);
       else {
         log.error("unknown task kind");
         this.d.store.tasks.fail(task.id, this.d.workerId, {
@@ -265,6 +272,60 @@ export class Worker {
     this.d.store.tasks.complete(task.id, this.d.workerId);
   }
 
+  private async refreshReview(task: TaskRecord, log: Logger): Promise<void> {
+    const payload = task.payload as { applicationId?: unknown };
+    if (typeof payload.applicationId !== "string")
+      throw new Error("refresh_review task without applicationId");
+    try {
+      if (!this.d.preparer) throw new Error("browser preparation is not configured in this worker");
+      const r = await this.d.preparer.review(payload.applicationId);
+      log.info({ open: r.checklist.length, control: !!r.submitControl }, "review snapshot taken");
+      this.d.store.tasks.complete(task.id, this.d.workerId);
+    } catch (err) {
+      log.warn({ errorClass: errorClass(err) }, "review snapshot failed");
+      this.d.store.tasks.fail(task.id, this.d.workerId, {
+        retry: false,
+        maxAttempts: 1,
+        errorClass: errorClass(err),
+      });
+    }
+  }
+
+  /** Never retried: a submission attempt runs at most once per approval (docs/APPROVAL_MODEL.md §4). */
+  private async submit(task: TaskRecord, log: Logger): Promise<void> {
+    const payload = task.payload as {
+      applicationId?: unknown;
+      approvalId?: unknown;
+      sealedSecret?: unknown;
+      traceId?: unknown;
+    };
+    if (
+      typeof payload.applicationId !== "string" ||
+      typeof payload.approvalId !== "string" ||
+      typeof payload.sealedSecret !== "string"
+    )
+      throw new Error("submit_application task is incomplete");
+    const traceId = typeof payload.traceId === "string" ? payload.traceId : newTraceId();
+    try {
+      if (!this.d.submitter) throw new Error("submission is not configured in this worker");
+      const r = await this.d.submitter.submit(
+        payload.applicationId,
+        payload.approvalId,
+        payload.sealedSecret,
+        traceId,
+      );
+      log.info({ outcome: r.outcome }, "submission attempt finished");
+      this.d.store.tasks.complete(task.id, this.d.workerId);
+    } catch (err) {
+      log.warn({ errorClass: errorClass(err) }, "submission refused");
+      this.d.store.tasks.fail(task.id, this.d.workerId, {
+        retry: false,
+        maxAttempts: 1,
+        errorClass: errorClass(err),
+      });
+    }
+  }
+
   async run(signal: AbortSignal, idleMs = 2000): Promise<void> {
     while (!signal.aborted) {
       const worked = await this.tick(signal).catch((err: unknown) => {
@@ -274,4 +335,10 @@ export class Worker {
       if (!worked) await new Promise((r) => setTimeout(r, idleMs));
     }
   }
+}
+
+function errorClass(err: unknown): string {
+  return err instanceof Error && "code" in err && typeof err.code === "string"
+    ? err.code.toLowerCase()
+    : "error";
 }

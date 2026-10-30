@@ -17,6 +17,7 @@ import {
 } from "@career-agent/domain";
 import { createDiscoveryPorts } from "@career-agent/sources";
 import { newTraceId, type Logger } from "@career-agent/observability";
+import { ApprovalService, approvalKey } from "@career-agent/security";
 import { errorBody, statusFor } from "./http-errors.js";
 import { LocalGuard } from "./local-guard.js";
 import { registerFactRoutes } from "./routes/facts.js";
@@ -193,6 +194,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     renderer: createCoverLetterRenderer(),
     artifacts: createArtifactWriter(files, deps.store.artifacts),
     drafter: null,
+    approvals: deps.store.approvals,
     uow: (fn) => deps.store.transaction(fn),
   });
 
@@ -207,6 +209,25 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     maxJobsScoredPerRun: env.MAX_JOBS_SCORED_PER_RUN,
   });
   registerResumeRoutes(app, { ...shared, tailoring, files });
-  registerApplicationRoutes(app, { ...shared, applications });
+  // Phase 8: approvals are signed with a key derived from LOCAL_SESSION_SECRET (docs/APPROVAL_MODEL.md §2).
+  const approvals = new ApprovalService({
+    approvals: deps.store.approvals,
+    applications: deps.store.applications,
+    attempts: deps.store.submissionAttempts,
+    audit: deps.store.audit,
+    uow: (fn) => deps.store.transaction(fn),
+    key: approvalKey(deps.sessionSecret),
+    ttlSeconds: env.APPROVAL_TTL_SECONDS,
+    mode: env.OPERATING_MODE,
+  });
+  registerApplicationRoutes(app, {
+    ...shared,
+    applications,
+    approvals,
+    files,
+    sessionSecret: deps.sessionSecret,
+    ttlSeconds: env.APPROVAL_TTL_SECONDS,
+    ...(deps.now ? { now: deps.now } : {}),
+  });
   return app;
 }

@@ -1,6 +1,13 @@
 # Approval and Submission Model
 
-The only path to an external application submission. Implemented in deterministic code (`packages/security/approval`, `packages/browser/submission`); no model can reach it (ADR-007).
+The only path to an external application submission. Implemented in deterministic code (`packages/security/src/approval.ts`, `@career-agent/browser/submission`, worker `Submitter`); no model can reach it (ADR-007, ADR-033, ADR-034).
+
+Implementation notes (Phase 8):
+
+- "Fresh snapshot within N seconds" uses N = `APPROVAL_TTL_SECONDS`. The snapshot is taken by the worker (after preparation, or on **Refresh review**). Its checklist must be empty, so boxes only the owner ticks (consent, attestations) are ticked before approving and are part of the bound form.
+- The "generic path" pointer (§1.6) is not implemented. Without exactly one recognized submit control, approval is refused.
+- §6 "FAILED": a same-page validation error with nothing sent returns the application to `READY_FOR_REVIEW` (ADR-034). `FAILED` is set only by the owner when resolving an uncertain submission.
+- §3 revocation: owner edits revoke at once. Navigation and DOM changes are caught by the pre-click binding check. A worker restart revokes outstanding approvals at startup.
 
 ## 1. Preconditions for issuing a token
 

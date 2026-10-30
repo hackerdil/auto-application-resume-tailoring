@@ -69,7 +69,13 @@
    - _Form filled — ready for your review_: everything is in place. Check the form in the window.
      Career Agent never presses Submit. If you change an answer afterwards, the application goes back to preparing; press **Continue** to refill. **Close browser** closes the window. Your sign-ins are kept in a separate browser profile (`BROWSER_PROFILE_DIR`), never your everyday browser.
 
-Nothing is sent to an employer by Career Agent. Your final approval and the submission step arrive in Phase 8.
+8. **Review and approve:** look over the filled form in the browser window. Tick any consent or declaration boxes yourself, then press **Refresh review**. When nothing is listed under _Before you can approve_, tick the confirmation and press **Approve and submit**. Career Agent checks that nothing changed: your answers, your files, the form, the site, and the submit button. It then presses that button once.
+   - _Submitted_: the site showed a confirmation. Career Agent keeps the page title and headings as evidence.
+   - _The site rejected the form_: nothing was sent. Fix what it shows in the window, refresh the review, and approve again.
+   - _Could not tell_: check the window or your email, then choose **It was submitted** or **It was not submitted**. Career Agent never retries on its own.
+     An approval is single-use and expires after `APPROVAL_TTL_SECONDS` (5 minutes by default). Changing anything, closing the browser, or restarting Career Agent cancels it. You can also press **Cancel approval** while it is pending.
+
+Nothing is sent to an employer without your approval of that specific application.
 
 ## Your data
 

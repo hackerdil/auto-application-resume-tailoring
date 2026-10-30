@@ -421,6 +421,23 @@ export const browserSessions = sqliteTable("browser_sessions", {
   handoffReason: text("handoff_reason"),
   steps: integer("steps").notNull().default(0),
   lastUrl: text("last_url"),
+  /** Phase 8: latest review snapshot (hash, submit control, checklist), see docs/APPROVAL_MODEL.md. */
+  review: json("review").$type<Record<string, unknown>>(),
+});
+
+export const submissionAttempts = sqliteTable("submission_attempts", {
+  id: id(),
+  applicationId: text("application_id")
+    .notNull()
+    .references(() => applications.id),
+  approvalId: text("approval_id")
+    .notNull()
+    .unique()
+    .references(() => applicationApprovals.id),
+  startedAt: integer("started_at").notNull(),
+  endedAt: integer("ended_at"),
+  outcome: text("outcome"),
+  evidence: json("evidence").$type<Record<string, unknown>>(),
 });
 
 export const agentRuns = sqliteTable("agent_runs", {

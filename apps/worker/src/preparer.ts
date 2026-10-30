@@ -3,12 +3,20 @@ import {
   BrowserToolbox,
   adapterFor,
   prepareForm,
+  snapshotHash,
   type AtsAdapter,
   type PreparationReport,
 } from "@career-agent/browser";
+import { submitControlIdentity } from "@career-agent/browser/submission";
 import type { Store } from "@career-agent/db";
 import type { FileArtifactStore } from "@career-agent/documents";
-import { PolicyError, RunBudget, type ApplicationService } from "@career-agent/domain";
+import {
+  normalizeQuestion,
+  PolicyError,
+  RunBudget,
+  type ApplicationService,
+  type ReviewSnapshot,
+} from "@career-agent/domain";
 import type { Logger } from "@career-agent/observability";
 
 export interface PreparerOptions {
@@ -26,7 +34,7 @@ export interface PreparerOptions {
   allowPrivateNetwork?: boolean;
 }
 
-interface Live {
+export interface Live {
   session: BrowserSession;
   toolbox: BrowserToolbox;
   adapter: AtsAdapter;
@@ -47,7 +55,7 @@ const LIMITS = (maxSteps: number) => ({
 /**
  * Owns the visible preparation browsers of this worker process (spec §13, Phase 7): one window per application,
  * kept open across hand-offs so the owner can sign in or answer and press Continue. Only deterministic
- * preparation runs here; there is no submit path in this process.
+ * preparation runs here; the submit path is the separate Submitter (Phase 8), which reuses these windows.
  */
 export class BrowserPreparer {
   private readonly live = new Map<string, Live>();
@@ -94,6 +102,7 @@ export class BrowserPreparer {
         message = err.message;
       }
     }
+    if (status === "ready") await this.review(applicationId);
     const rec = this.o.store.browserSessions.update(live.recordId, {
       status,
       handoffReason: [message, ...report.checklist].join("\n").slice(0, 2000),
@@ -127,6 +136,52 @@ export class BrowserPreparer {
       },
     });
     return { ...report, message };
+  }
+
+  /** The live window for an application, if this worker has one open. */
+  liveFor(applicationId: string): Live | null {
+    const l = this.live.get(applicationId);
+    return l && !l.session.isClosed && !l.session.page.isClosed() ? l : null;
+  }
+
+  /**
+   * Phase 8 review snapshot: the form exactly as it stands (including boxes the owner ticked), its hash, the one
+   * submit control, and anything still open. Approval is possible only when the checklist is empty.
+   */
+  async review(applicationId: string): Promise<ReviewSnapshot> {
+    const live = this.liveFor(applicationId);
+    if (!live) throw new PolicyError("Open the form with Prepare in browser first.");
+    const checklist = await live.toolbox.readinessChecklist();
+    const s = live.toolbox.snapshot;
+    if (!s) throw new PolicyError("The page could not be read.");
+    const answers = this.o.applications.answersFor(this.o.ownerId, applicationId);
+    for (const f of live.adapter.extractFields(s)) {
+      if (f.secret || f.ambiguous || f.type === "file") continue;
+      const a = answers.find((x) => x.field.normalizedQuestion === normalizeQuestion(f.label));
+      if (!a || a.finalValue === null || a.decision === "prohibited") continue;
+      const wanted = a.finalValue.trim().toLowerCase();
+      const els = s.elements.filter((e) => f.handles.includes(e.handle));
+      const shows =
+        f.type === "radio"
+          ? els.some((e) => e.checked && e.label.trim().toLowerCase() === wanted)
+          : f.type === "checkbox"
+            ? els.some((e) => e.checked === /^(yes|true|checked|on|1|y)$/i.test(wanted))
+            : els.some((e) => e.value.trim().toLowerCase().startsWith(wanted));
+      if (!shows) checklist.push(`Changed on the page: "${f.label}" no longer shows your answer.`);
+    }
+    const control = live.adapter.submitControl(s);
+    if (!control)
+      checklist.push("Career Agent could not find exactly one submit button on this page.");
+    const review: ReviewSnapshot = {
+      formSnapshotHash: snapshotHash(s),
+      url: s.url,
+      origin: s.origin,
+      submitControl: control ? submitControlIdentity(live.adapter, control) : null,
+      checklist,
+      takenAt: new Date().toISOString(),
+    };
+    this.o.store.browserSessions.recordReview(live.recordId, review);
+    return review;
   }
 
   async close(applicationId: string): Promise<void> {

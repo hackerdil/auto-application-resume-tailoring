@@ -17,6 +17,8 @@ import {
 import { createLogger } from "@career-agent/observability";
 import { createDiscoveryPorts } from "@career-agent/sources";
 import { BrowserPreparer } from "./preparer.js";
+import { Submitter } from "./submitter.js";
+import { ApprovalService, approvalKey } from "@career-agent/security";
 import { Worker } from "./worker.js";
 
 try {
@@ -79,6 +81,7 @@ try {
     renderer: createCoverLetterRenderer(),
     artifacts: createArtifactWriter(new FileArtifactStore(artifactDir), store.artifacts),
     drafter: null,
+    approvals: store.approvals,
     uow: (fn) => store.transaction(fn),
   });
   const preparer = new BrowserPreparer({
@@ -92,6 +95,34 @@ try {
     maxSteps: config.env.BROWSER_MAX_STEPS,
     sessionTimeoutMs: config.env.BROWSER_TIMEOUT_MS,
   });
+  // Phase 8: submission needs LOCAL_SESSION_SECRET (approval MACs) and review-each mode.
+  const sessionSecret = config.env.LOCAL_SESSION_SECRET
+    ? Buffer.from(config.env.LOCAL_SESSION_SECRET, "base64")
+    : null;
+  if (!sessionSecret)
+    logger.warn("LOCAL_SESSION_SECRET is not set; approved submissions are disabled.");
+  const submitter = sessionSecret
+    ? new Submitter({
+        store,
+        applications,
+        approvals: new ApprovalService({
+          approvals: store.approvals,
+          applications: store.applications,
+          attempts: store.submissionAttempts,
+          audit: store.audit,
+          uow: (fn) => store.transaction(fn),
+          key: approvalKey(sessionSecret),
+          ttlSeconds: config.env.APPROVAL_TTL_SECONDS,
+          mode: config.env.OPERATING_MODE,
+        }),
+        preparer,
+        files: new FileArtifactStore(artifactDir),
+        ownerId,
+        sessionSecret,
+        mode: config.env.OPERATING_MODE,
+        logger,
+      })
+    : undefined;
   const controller = new AbortController();
   const worker = new Worker({
     store,
@@ -100,6 +131,7 @@ try {
     tailoring,
     applications,
     preparer,
+    ...(submitter ? { submitter } : {}),
     ownerId,
     workerId: `${hostname()}:${process.pid}`,
     logger,

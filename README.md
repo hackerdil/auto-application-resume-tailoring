@@ -2,7 +2,7 @@
 
 A local-first, human-in-the-loop tool that helps **one person**, acting for themselves, find relevant jobs and prepare truthful applications. You review every application and approve it before it is submitted.
 
-> **Status: Phase 7 (browser preparation) complete.** Prepare an application per job: pick your approved résumé, draft and approve a cover letter, answer the questions, then let Career Agent fill the employer's form in a separate browser window. It fills only your approved answers, hands sign-in and CAPTCHAs to you, and never submits. Approval and submission arrive in Phase 8. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+> **Status: Phase 8 (approval and submission) complete.** Prepare an application per job, let Career Agent fill the employer's form in a separate browser window, review it, and approve. Only then does Career Agent press the form's submit button, once, after checking that nothing changed since your approval. Model-driven orchestration arrives in Phase 9. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## What it does
 

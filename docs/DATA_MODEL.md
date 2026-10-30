@@ -4,34 +4,35 @@ Zod schemas in `packages/domain` are the runtime source of truth; Drizzle tables
 
 ## 1. Tables
 
-| Table                   | Purpose                                                                              | Key constraints                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `users`                 | Single local owner                                                                   | one row enforced by check in Phase 1                                         |
-| `candidate_profiles`    | Current profile pointer per user; preferences, disclosure settings                   | FK users; 🔒 contact fields, compensation, demographic defaults              |
-| `profile_versions`      | Immutable profile snapshots                                                          | UNIQUE(profile_id, version)                                                  |
-| `facts`                 | Append-only verified facts                                                           | `superseded_by` FK facts; no UPDATE except setting `superseded_by` once      |
-| `fact_sources`          | Provenance: artifact, location, evidence text                                        | FK facts, artifacts                                                          |
-| `saved_answers`         | Explicit user answers to recurring questions                                         | 🔒 value; `sensitivity`; UNIQUE(user_id, normalized_question) among active   |
-| `job_sources`           | Configured sources (type, board token, enabled, allowlist)                           | UNIQUE(type, identifier)                                                     |
-| `companies`             | Normalized companies                                                                 | UNIQUE(normalized_name)                                                      |
-| `jobs`                  | Canonical jobs                                                                       | PK canonical id; `source_hash`, `content_hash`; status                       |
-| `job_requirements`      | Requirement list with stable IDs                                                     | UNIQUE(job_id, requirement_key)                                              |
-| `job_fetches`           | Per-fetch log: url, time, status, etag, hash                                         | FK job_sources                                                               |
-| `match_results`         | Scores, dimensions, evidence JSON, prompt/model version                              | FK jobs; UNIQUE(job_id, profile_version, scoring_version)                    |
-| `resume_templates`      | Template metadata                                                                    |                                                                              |
-| `resume_versions`       | Structured tailored résumé (JSON)                                                    | FK jobs, profile_versions                                                    |
-| `resume_bullets`        | Bullet text, `fact_ids`, `requirement_ids`, transformation, verifier status/findings | FK resume_versions                                                           |
-| `artifacts`             | Immutable files, SHA-256 addressed                                                   | UNIQUE(sha256); no UPDATE/DELETE except retention purge                      |
-| `applications`          | One per (user, job)                                                                  | UNIQUE(user_id, job_id) — prevents double application; state                 |
-| `application_fields`    | Detected form fields (label, type, options, required, adapter key)                   | FK applications                                                              |
-| `application_answers`   | Proposed/approved values, provenance, decision                                       | 🔒 values; FK fields                                                         |
-| `application_approvals` | Approval tokens (ADR-006)                                                            | `token_hash`, binding JSON + HMAC, `expires_at`, `consumed_at`, `revoked_at` |
-| `browser_sessions`      | Context lifecycle, origin allowlist, status                                          | FK applications                                                              |
-| `provider_runs`         | Each provider call: provider, model, usage, cost, error class                        | trace_id indexed                                                             |
-| `agent_runs`            | Workflow run: limits, counters, status                                               | idempotency_key UNIQUE                                                       |
-| `tasks`                 | Worker queue with leases (ADR-012)                                                   | idempotency_key UNIQUE                                                       |
-| `audit_events`          | Append-only consequential events                                                     | no UPDATE/DELETE (trigger)                                                   |
-| `follow_ups`            | Reminders and outcomes                                                               | FK applications                                                              |
+| Table                   | Purpose                                                                                                                   | Key constraints                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `users`                 | Single local owner                                                                                                        | one row enforced by check in Phase 1                                         |
+| `candidate_profiles`    | Current profile pointer per user; preferences, disclosure settings                                                        | FK users; 🔒 contact fields, compensation, demographic defaults              |
+| `profile_versions`      | Immutable profile snapshots                                                                                               | UNIQUE(profile_id, version)                                                  |
+| `facts`                 | Append-only verified facts                                                                                                | `superseded_by` FK facts; no UPDATE except setting `superseded_by` once      |
+| `fact_sources`          | Provenance: artifact, location, evidence text                                                                             | FK facts, artifacts                                                          |
+| `saved_answers`         | Explicit user answers to recurring questions                                                                              | 🔒 value; `sensitivity`; UNIQUE(user_id, normalized_question) among active   |
+| `job_sources`           | Configured sources (type, board token, enabled, allowlist)                                                                | UNIQUE(type, identifier)                                                     |
+| `companies`             | Normalized companies                                                                                                      | UNIQUE(normalized_name)                                                      |
+| `jobs`                  | Canonical jobs                                                                                                            | PK canonical id; `source_hash`, `content_hash`; status                       |
+| `job_requirements`      | Requirement list with stable IDs                                                                                          | UNIQUE(job_id, requirement_key)                                              |
+| `job_fetches`           | Per-fetch log: url, time, status, etag, hash                                                                              | FK job_sources                                                               |
+| `match_results`         | Scores, dimensions, evidence JSON, prompt/model version                                                                   | FK jobs; UNIQUE(job_id, profile_version, scoring_version)                    |
+| `resume_templates`      | Template metadata                                                                                                         |                                                                              |
+| `resume_versions`       | Structured tailored résumé (JSON)                                                                                         | FK jobs, profile_versions                                                    |
+| `resume_bullets`        | Bullet text, `fact_ids`, `requirement_ids`, transformation, verifier status/findings                                      | FK resume_versions                                                           |
+| `artifacts`             | Immutable files, SHA-256 addressed                                                                                        | UNIQUE(sha256); no UPDATE/DELETE except retention purge                      |
+| `applications`          | One per (user, job)                                                                                                       | UNIQUE(user_id, job_id) — prevents double application; state                 |
+| `application_fields`    | Detected form fields (label, type, options, required, adapter key)                                                        | FK applications                                                              |
+| `application_answers`   | Proposed/approved values, provenance, decision                                                                            | 🔒 values; FK fields                                                         |
+| `application_approvals` | Approval tokens (ADR-006)                                                                                                 | `token_hash`, binding JSON + HMAC, `expires_at`, `consumed_at`, `revoked_at` |
+| `browser_sessions`      | Context lifecycle, origin allowlist, status, adapter, hand-off message, review snapshot (hash, submit control, checklist) | FK applications; status trigger; immutable once ended                        |
+| `submission_attempts`   | One per consumed approval: outcome and redacted evidence (URL without query, title, headings, errors, writes sent)        | unique `approval_id`; needs a consumed approval; append-only once finished   |
+| `provider_runs`         | Each provider call: provider, model, usage, cost, error class                                                             | trace_id indexed                                                             |
+| `agent_runs`            | Workflow run: limits, counters, status                                                                                    | idempotency_key UNIQUE                                                       |
+| `tasks`                 | Worker queue with leases (ADR-012)                                                                                        | idempotency_key UNIQUE                                                       |
+| `audit_events`          | Append-only consequential events                                                                                          | no UPDATE/DELETE (trigger)                                                   |
+| `follow_ups`            | Reminders and outcomes                                                                                                    | FK applications                                                              |
 
 ## 2. Key schemas (abridged — full definitions in Phase 1 code)
 

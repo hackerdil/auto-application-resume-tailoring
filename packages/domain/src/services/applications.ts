@@ -4,6 +4,7 @@ import { matchableFacts, requirementsFromJob } from "../matching/evidence.js";
 import type {
   ApplicationFieldRepository,
   ApplicationRepository,
+  ApprovalRepository,
   AuditRepository,
   CoverLetterRecord,
   CoverLetterRepository,
@@ -43,6 +44,9 @@ export const coverLetterKeyPrefix = (applicationId: string): string => `cover:${
 /** Phase 7 browser tasks: open/continue preparing the form, and close its browser. Run by the worker that owns the window. */
 export const PREPARE_APPLICATION_TASK = "prepare_application";
 export const CLOSE_BROWSER_TASK = "close_browser";
+/** Phase 8: re-snapshot the filled form for review, and run an approved submission. */
+export const REFRESH_REVIEW_TASK = "refresh_review";
+export const SUBMIT_APPLICATION_TASK = "submit_application";
 export const browserKeyPrefix = (applicationId: string): string => `browser:${applicationId}:`;
 
 /** Questions most application forms ask; added on request so the owner can prepare before opening the form. */
@@ -89,6 +93,14 @@ export interface PageQuestion {
   ambiguous: boolean;
 }
 
+const LOCKED: readonly ApplicationState[] = [
+  "SUBMITTING",
+  "SUBMITTED",
+  "SUBMISSION_UNCERTAIN",
+  "FAILED",
+  "WITHDRAWN",
+];
+
 const PREPARABLE: readonly ApplicationState[] = [
   "READY_TO_PREPARE",
   "PREPARING",
@@ -123,6 +135,8 @@ export interface ApplicationDeps {
   drafter?: ApplicationDrafter | null;
   limits?: RunLimits;
   now?: () => Date;
+  /** Phase 8: active approvals are revoked when the owner changes anything after approving. */
+  approvals?: ApprovalRepository | null;
   /** Unit of work for multi-repository changes; defaults to running `fn` directly. */
   uow?: <T>(fn: () => T) => T;
 }
@@ -268,7 +282,7 @@ export class ApplicationService {
     resumeVersionId: string,
     traceId: string,
   ): ApplicationOverview {
-    const app = this.owned(ownerId, applicationId);
+    const app = this.editable(ownerId, applicationId);
     const r = this.d.resumes.get(resumeVersionId);
     if (!r || r.resume.jobId !== app.jobId)
       throw new ValidationError("That résumé was not tailored for this job.");
@@ -287,7 +301,7 @@ export class ApplicationService {
     skip: boolean,
     traceId: string,
   ): ApplicationOverview {
-    const app = this.owned(ownerId, applicationId);
+    const app = this.editable(ownerId, applicationId);
     this.d.applications.setMaterials(app.id, {
       coverLetterSkipped: skip,
       ...(skip ? { coverLetterVersionId: null } : {}),
@@ -305,7 +319,7 @@ export class ApplicationService {
     status: "approved" | "rejected",
     traceId: string,
   ): ApplicationOverview {
-    const app = this.owned(ownerId, applicationId);
+    const app = this.editable(ownerId, applicationId);
     const rec = this.d.coverLetters.get(letterId);
     if (!rec || rec.letter.applicationId !== app.id)
       throw new NotFoundError("Cover letter not found.");
@@ -334,7 +348,7 @@ export class ApplicationService {
     origin: ApplicationField["origin"],
     traceId: string,
   ): ApplicationOverview {
-    const app = this.owned(ownerId, applicationId);
+    const app = this.editable(ownerId, applicationId);
     const job = this.job(app);
     const existing = new Set(this.d.fields.list(app.id).map((a) => a.field.normalizedQuestion));
     const ctx = this.plannerContext(ownerId, app, new Map());
@@ -373,7 +387,7 @@ export class ApplicationService {
     fieldId: string,
     traceId: string,
   ): ApplicationOverview {
-    const app = this.owned(ownerId, applicationId);
+    const app = this.editable(ownerId, applicationId);
     const a = this.d.fields.list(app.id).find((x) => x.field.id === fieldId);
     if (!a) throw new NotFoundError("Question not found.");
     if (a.field.origin === "page")
@@ -396,7 +410,7 @@ export class ApplicationService {
     input: { value: string | null } | { useProposal: true },
     traceId: string,
   ): ApplicationOverview {
-    const app = this.owned(ownerId, applicationId);
+    const app = this.editable(ownerId, applicationId);
     const a = this.d.fields.list(app.id).find((x) => x.field.id === fieldId);
     if (!a) throw new NotFoundError("Question not found.");
     if (a.decision === "prohibited")
@@ -593,6 +607,38 @@ export class ApplicationService {
     return l?.status === "approved" && l.artifacts.pdf
       ? { artifactId: l.artifacts.pdf.id, sha256: l.artifacts.pdf.sha256 }
       : null;
+  }
+
+  /**
+   * Phase 8 binding inputs: the approved résumé (and cover letter unless skipped) as SHA-256 hashes, each checked
+   * against the bytes on disk by `verify`, plus the answers. Throws when a required file is missing or changed.
+   */
+  submissionMaterials(
+    ownerId: string,
+    applicationId: string,
+    verify: (artifactId: string, sha256: string) => void,
+  ): {
+    job: Job;
+    answers: ApplicationAnswer[];
+    resumeHash: string;
+    coverLetterHash: string | null;
+  } {
+    const app = this.owned(ownerId, applicationId);
+    const resume = this.approvedFileRef(ownerId, app.id, "resume");
+    if (!resume) throw new PolicyError("There is no approved résumé for this application.");
+    verify(resume.artifactId, resume.sha256);
+    const letter = app.coverLetterSkipped
+      ? null
+      : this.approvedFileRef(ownerId, app.id, "cover_letter");
+    if (!app.coverLetterSkipped && !letter)
+      throw new PolicyError("Approve a cover letter or choose to apply without one.");
+    if (letter) verify(letter.artifactId, letter.sha256);
+    return {
+      job: this.job(app),
+      answers: this.d.fields.list(app.id),
+      resumeHash: resume.sha256,
+      coverLetterHash: letter?.sha256 ?? null,
+    };
   }
 
   /** Re-plans answers the owner has not set (e.g. after saving answers or approving materials). */
@@ -994,12 +1040,28 @@ export class ApplicationService {
     if (app.state === "READY_TO_PREPARE" && hasQuestions) step("PREPARING");
     // Only required questions hold the application; optional ones can stay blank.
     const waiting = o.pending.some((a) => a.field.required);
+    // A change after approval revokes it: the binding no longer describes what would be sent.
+    if (app.state === "APPROVED_TO_SUBMIT" && reopen)
+      this.d.uow(() => {
+        this.d.approvals?.revokeAllActive(app.id, "answers or materials changed");
+        step("READY_FOR_REVIEW");
+      });
     // Anything changed after the form was prepared sends it back for another pass (and a fresh review).
     if (app.state === "READY_FOR_REVIEW" && (reopen || waiting || !o.answersComplete))
       step("PREPARING");
     if (app.state === "PREPARING" && waiting) step("AWAITING_USER_INPUT");
     else if (app.state === "AWAITING_USER_INPUT" && !waiting) step("PREPARING");
     return { ...o, application: app };
+  }
+
+  /** Owner edits are refused once submission has started; before that they revoke any approval (afterChange). */
+  private editable(ownerId: string, applicationId: string): Application {
+    const app = this.owned(ownerId, applicationId);
+    if (LOCKED.includes(app.state))
+      throw new PolicyError(
+        `This application is ${app.state.toLowerCase().replaceAll("_", " ")}; it can no longer be changed.`,
+      );
+    return app;
   }
 
   private owned(ownerId: string, applicationId: string): Application {

@@ -9,7 +9,13 @@ const root = fileURLToPath(new URL(".", import.meta.url));
  */
 export default defineConfig({
   resolve: {
-    alias: [{ find: /^@career-agent\/([a-z-]+)$/, replacement: `${root}packages/$1/src/index.ts` }],
+    alias: [
+      {
+        find: /^@career-agent\/([a-z-]+)\/([a-z-]+)$/,
+        replacement: `${root}packages/$1/src/$2/index.ts`,
+      },
+      { find: /^@career-agent\/([a-z-]+)$/, replacement: `${root}packages/$1/src/index.ts` },
+    ],
   },
   test: {
     include: ["packages/*/src/**/*.browser.test.ts", "apps/*/src/**/*.browser.test.ts"],
