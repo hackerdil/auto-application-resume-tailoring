@@ -1,0 +1,27 @@
+{
+  "name": "@career-agent/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.4",
+    "@career-agent/domain": "workspace:*",
+    "@career-agent/security": "workspace:*",
+    "@career-agent/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "drizzle-kit": "^0.31.11"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "migrate": "node --env-file-if-exists=../../.env dist/cli/migrate.js"
+  }
+}

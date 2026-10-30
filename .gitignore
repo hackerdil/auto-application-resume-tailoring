@@ -1,0 +1,71 @@
+# Dependencies and build output
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local private data (keep directory markers)
+data/*
+!data/.gitkeep
+artifacts/*
+!artifacts/.gitkeep
+
+# Browser profiles and Playwright state
+browser-profile/
+**/browser-profile/
+playwright/.auth/
+storageState*.json
+test-results/
+playwright-report/
+blob-report/
+
+# Databases
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.db-wal
+*.db-shm
+
+# Generated documents and media (fixtures are text-based by policy)
+*.pdf
+*.docx
+!fixtures/**/*.fixture.pdf
+!fixtures/**/*.fixture.docx
+*.png
+*.jpg
+*.jpeg
+*.webm
+*.mp4
+*.zip
+
+# Logs and traces
+logs/
+*.log
+traces/
+*.trace.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Local Claude Code overrides
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Next.js generated
+next-env.d.ts

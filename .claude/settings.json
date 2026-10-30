@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm check)",
+      "Bash(pnpm format)",
+      "Bash(pnpm format:check)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm vitest *)",
+      "Bash(pnpm build)",
+      "Bash(pnpm db:migrate)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(rg *)"
+    ],
+    "ask": [
+      "Bash(pnpm test:browser *)",
+      "Bash(pnpm add *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(ENABLE_LIVE_AI_TESTS=true *)",
+      "Bash(ENABLE_LIVE_SOURCE_TESTS=true *)",
+      "Bash(git push *)",
+      "WebFetch"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./data/**)",
+      "Read(./artifacts/**)",
+      "Read(**/browser-profile/**)",
+      "Read(./playwright/.auth/**)",
+      "Read(**/*.sqlite)",
+      "Read(**/*.sqlite-wal)",
+      "Read(**/*.db)",
+      "Read(**/*.keychain*)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(./data/**)",
+      "Edit(./artifacts/**)",
+      "Bash(env)",
+      "Bash(printenv *)",
+      "Bash(printenv)",
+      "Bash(sudo *)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

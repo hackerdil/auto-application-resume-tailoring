@@ -1,0 +1,41 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "title": "Product Designer",
+      "location": "London",
+      "secondaryLocations": [
+        { "location": "Remote - UK", "address": { "addressCountry": "United Kingdom" } }
+      ],
+      "department": "Design",
+      "team": "Product",
+      "isListed": true,
+      "isRemote": false,
+      "workplaceType": "Hybrid",
+      "descriptionHtml": "<p>Design delightful fictional products.</p><p><strong>About you</strong></p><ul><li>Figma</li><li>Portfolio</li></ul>",
+      "descriptionPlain": "Design delightful fictional products.",
+      "publishedAt": "2026-10-25T08:00:00.000Z",
+      "employmentType": "FullTime",
+      "jobUrl": "https://jobs.ashbyhq.com/initech-example/7d1e2f3a-4b5c-4d9e-8f1a-2b3c4d5e6f70",
+      "applyUrl": "https://jobs.ashbyhq.com/initech-example/7d1e2f3a-4b5c-4d9e-8f1a-2b3c4d5e6f70/application",
+      "compensation": {
+        "compensationTierSummary": "£60K – £75K",
+        "summaryComponents": [
+          {
+            "compensationType": "Salary",
+            "interval": "1 YEAR",
+            "currencyCode": "GBP",
+            "minValue": 60000,
+            "maxValue": 75000
+          }
+        ]
+      }
+    },
+    {
+      "title": "Unlisted Role",
+      "isListed": false,
+      "jobUrl": "https://jobs.ashbyhq.com/initech-example/11111111-2222-4333-8444-555555555555"
+    },
+    { "title": "No URL" }
+  ]
+}

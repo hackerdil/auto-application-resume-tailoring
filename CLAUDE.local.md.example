@@ -1,0 +1,5 @@
+# Personal Claude Code notes for this checkout (copy to CLAUDE.local.md, which is git-ignored)
+
+- Preferred editor / terminal habits.
+- Local-only paths, e.g. where your private résumé lives (never inside fixtures/).
+- Whether you have authorized a live smoke test, and its cost cap. Default: not authorized.

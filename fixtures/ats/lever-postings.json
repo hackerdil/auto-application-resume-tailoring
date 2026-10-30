@@ -1,0 +1,27 @@
+[
+  {
+    "id": "0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e",
+    "text": "Staff Platform Engineer",
+    "hostedUrl": "https://jobs.lever.co/globexexample/0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e",
+    "applyUrl": "https://jobs.lever.co/globexexample/0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e/apply",
+    "createdAt": 1790000000000,
+    "categories": {
+      "location": "Amsterdam",
+      "commitment": "Full-time",
+      "team": "Platform",
+      "department": "Engineering",
+      "allLocations": ["Amsterdam", "Remote - Netherlands"]
+    },
+    "description": "<div>Run our Kubernetes platform.</div>",
+    "descriptionPlain": "Run our Kubernetes platform.",
+    "lists": [
+      { "text": "Requirements", "content": "<li>Go or Rust</li><li>Kubernetes in production</li>" },
+      { "text": "Bonus points", "content": "<li>Terraform</li>" }
+    ],
+    "additional": "<div>Visa sponsorship is available for this position.</div>",
+    "additionalPlain": "Visa sponsorship is available for this position.",
+    "workplaceType": "hybrid",
+    "salaryRange": { "min": 95000, "max": 120000, "currency": "EUR", "interval": "per-year-salary" }
+  },
+  { "text": "Missing id and url" }
+]

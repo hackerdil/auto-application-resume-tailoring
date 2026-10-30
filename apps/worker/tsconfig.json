@@ -1,0 +1,41 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../../packages/browser"
+    },
+    {
+      "path": "../../packages/config"
+    },
+    {
+      "path": "../../packages/db"
+    },
+    {
+      "path": "../../packages/documents"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/observability"
+    },
+    {
+      "path": "../../packages/sources"
+    },
+    {
+      "path": "../../packages/ai"
+    },
+    {
+      "path": "../../packages/security"
+    },
+    {
+      "path": "../../packages/testkit"
+    }
+  ]
+}

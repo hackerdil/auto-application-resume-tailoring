@@ -1,0 +1,76 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1793284987908,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793284988374,
+      "tag": "0001_append_only_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793285740520,
+      "tag": "0002_fact_candidates_and_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793285740974,
+      "tag": "0003_candidate_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793288041874,
+      "tag": "0004_job_sources_and_fetches",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793290516675,
+      "tag": "0005_resume_versions_artifacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793290517132,
+      "tag": "0006_resume_guards_and_template",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793371514065,
+      "tag": "0007_application_materials",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793371529675,
+      "tag": "0008_application_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793373346166,
+      "tag": "0009_browser_sessions",
+      "breakpoints": true
+    }
+  ]
+}

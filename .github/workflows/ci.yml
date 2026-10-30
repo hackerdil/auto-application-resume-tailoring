@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    env:
+      ENABLE_LIVE_AI_TESTS: "false"
+      ENABLE_LIVE_SOURCE_TESTS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Résumé rendering and browser preparation tests use headless Chromium.
+      - run: pnpm --filter @career-agent/documents exec playwright install --with-deps chromium
+      - run: pnpm check
+      - run: pnpm build
+      # Browser preparation tests against local fictional ATS forms only.
+      - run: pnpm test:browser
+      - name: Fixture PII/secret scan
+        run: node scripts/scan-fixtures.mjs
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Dependency audit
+        run: pnpm audit --audit-level high
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

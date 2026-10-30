@@ -1,0 +1,17 @@
+{
+  "name": "@career-agent/observability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "pino": "^10.4.0",
+    "@career-agent/domain": "workspace:*",
+    "@career-agent/security": "workspace:*"
+  }
+}

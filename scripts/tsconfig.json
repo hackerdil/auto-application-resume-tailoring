@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "noEmit": false
+  },
+  "include": ["__tests__/**/*.ts", "../vitest.config.ts", "../vitest.browser.config.ts"]
+}

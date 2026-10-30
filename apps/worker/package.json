@@ -1,0 +1,23 @@
+{
+  "name": "@career-agent/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@career-agent/browser": "workspace:*",
+    "@career-agent/config": "workspace:*",
+    "@career-agent/db": "workspace:*",
+    "@career-agent/documents": "workspace:*",
+    "@career-agent/domain": "workspace:*",
+    "@career-agent/observability": "workspace:*",
+    "@career-agent/sources": "workspace:*"
+  },
+  "devDependencies": {
+    "@career-agent/ai": "workspace:*",
+    "@career-agent/security": "workspace:*",
+    "@career-agent/testkit": "workspace:*"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env dist/main.js"
+  }
+}

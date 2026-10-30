@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="ca-fixture-ats" content="lever"><title>Staff Platform Engineer - Globex Example Inc</title>
+<style>[role=listbox]{border:1px solid #999;margin:0;padding:0;list-style:none}[role=option]{padding:4px;cursor:pointer}</style></head>
+<body>
+<h1>Staff Platform Engineer</h1>
+<h2>Submit your application</h2>
+<form id="lever-form" action="/submit" method="post">
+  <p><label for="name">Full name *</label><input id="name" name="name" required></p>
+  <p><label for="email">Email *</label><input id="email" name="email" type="email" required></p>
+  <p><label for="phone">Phone</label><input id="phone" name="phone" type="tel"></p>
+  <p><label for="location">Current location *</label>
+    <input id="location" name="location" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loc-list" required autocomplete="off">
+    <ul id="loc-list" role="listbox" hidden></ul></p>
+  <p><label for="resume">Resume/CV *</label><input id="resume" name="resume" type="file" required></p>
+  <p><label for="urls_linkedin">LinkedIn URL</label><input id="urls_linkedin" name="urls[LinkedIn]" type="url"></p>
+  <p><label for="comments">Additional information</label><textarea id="comments" name="comments"></textarea></p>
+  <p><label><input type="checkbox" name="alerts"> Send me updates about new roles</label></p>
+  <button type="submit">Submit application</button>
+</form>
+<script>
+  const places = ["Berlin, Germany", "Bern, Switzerland", "Bergen, Norway", "Amsterdam, Netherlands"];
+  const input = document.getElementById("location");
+  const list = document.getElementById("loc-list");
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    list.innerHTML = "";
+    const hits = q ? places.filter((p) => p.toLowerCase().startsWith(q)) : [];
+    for (const p of hits) {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.textContent = p;
+      li.addEventListener("click", () => { input.value = p; list.hidden = true; input.setAttribute("aria-expanded", "false"); });
+      list.appendChild(li);
+    }
+    list.hidden = hits.length === 0;
+    input.setAttribute("aria-expanded", String(hits.length > 0));
+  });
+</script>
+</body></html>

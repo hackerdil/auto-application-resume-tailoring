@@ -1,0 +1,41 @@
+{
+  "name": "career-agent",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc -b && pnpm --filter @career-agent/web typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "build": "tsc -b && pnpm --filter @career-agent/web build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "db:migrate": "tsc -b packages/db && pnpm --filter @career-agent/db migrate",
+    "clean": "tsc -b --clean",
+    "data:export": "tsc -b apps/api && pnpm --filter @career-agent/api data export",
+    "data:delete": "tsc -b apps/api && pnpm --filter @career-agent/api data delete"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  }
+}

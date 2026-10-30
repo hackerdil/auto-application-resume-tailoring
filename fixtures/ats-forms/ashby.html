@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="ca-fixture-ats" content="ashby"><title>Product Designer - Initech Example</title></head>
+<body>
+<h1>Product Designer</h1>
+<form id="ashby-form" action="/submit" method="post">
+  <section id="step-1">
+    <h2>Step 1 of 3: Your details</h2>
+    <p><label for="_systemfield_name">Name *</label><input id="_systemfield_name" name="_systemfield_name" required></p>
+    <p><label for="_systemfield_email">Email *</label><input id="_systemfield_email" name="_systemfield_email" type="email" required></p>
+    <p><label for="_systemfield_resume">Resume *</label><input id="_systemfield_resume" name="_systemfield_resume" type="file" required></p>
+    <button type="button" id="next-1">Next</button>
+  </section>
+  <section id="step-2" hidden>
+    <h2>Step 2 of 3: Questions</h2>
+    <p><label for="heard">How did you hear about us? *</label><input id="heard" name="heard" required aria-describedby="heard-error"><span id="heard-error" role="alert"></span></p>
+    <p>Yes/No? <input name="q_unlabeled"></p>
+    <ca-field id="shadow-field" data-label="Portfolio website" data-name="portfolio"></ca-field>
+    <iframe id="extra-frame" title="Additional questions" src="/frame-field"></iframe>
+    <button type="button" id="next-2">Next</button>
+  </section>
+  <section id="step-3" hidden>
+    <h2>Step 3 of 3: Review your application</h2>
+    <p>Please review your answers before submitting.</p>
+    <button type="submit">Submit application</button>
+  </section>
+</form>
+<script>
+  customElements.define("ca-field", class extends HTMLElement {
+    connectedCallback() {
+      const root = this.attachShadow({ mode: "open" });
+      root.innerHTML = '<label for="f">' + this.dataset.label + '</label><input id="f" type="url" name="' + this.dataset.name + '">';
+    }
+  });
+  const show = (n) => { for (const i of [1, 2, 3]) document.getElementById("step-" + i).hidden = i !== n; };
+  document.getElementById("next-1").addEventListener("click", () => show(2));
+  document.getElementById("next-2").addEventListener("click", () => {
+    const heard = document.getElementById("heard");
+    if (!heard.value.trim()) {
+      heard.setAttribute("aria-invalid", "true");
+      document.getElementById("heard-error").textContent = "This field is required.";
+      return;
+    }
+    heard.removeAttribute("aria-invalid");
+    document.getElementById("heard-error").textContent = "";
+    show(3);
+  });
+</script>
+</body></html>

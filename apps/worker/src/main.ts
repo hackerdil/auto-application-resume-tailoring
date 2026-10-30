@@ -1,0 +1,123 @@
+import path from "node:path";
+import { hostname } from "node:os";
+import { ConfigError } from "@career-agent/config";
+import { bootstrap } from "@career-agent/db";
+import {
+  ApplicationService,
+  DiscoveryService,
+  MatchingService,
+  TailoringService,
+} from "@career-agent/domain";
+import {
+  createArtifactWriter,
+  createCoverLetterRenderer,
+  createResumeRenderer,
+  FileArtifactStore,
+} from "@career-agent/documents";
+import { createLogger } from "@career-agent/observability";
+import { createDiscoveryPorts } from "@career-agent/sources";
+import { BrowserPreparer } from "./preparer.js";
+import { Worker } from "./worker.js";
+
+try {
+  const { config, store, ownerId, artifactDir } = bootstrap();
+  const logger = createLogger({
+    level: config.env.LOG_LEVEL,
+    base: { app: "career-agent-worker" },
+  });
+  if (config.env.DISCOVERY_SCHEDULE_ENABLED)
+    logger.warn("Scheduled discovery is not implemented yet; run discovery from the Sources page.");
+  const discovery = new DiscoveryService({
+    jobs: store.jobs,
+    sources: store.jobSources,
+    fetches: store.jobFetches,
+    profiles: store.profiles,
+    audit: store.audit,
+    ports: createDiscoveryPorts(),
+    freshnessDays: config.env.JOB_FRESHNESS_DAYS,
+    enableWorkable: config.env.ENABLE_WORKABLE,
+  });
+  // Provider-backed analysis arrives with the provider implementations (Phase 9); until then scoring is deterministic.
+  const matching = new MatchingService({
+    jobs: store.jobs,
+    facts: store.facts,
+    profiles: store.profiles,
+    savedAnswers: store.savedAnswers,
+    matches: store.matches,
+    requirements: store.jobRequirements,
+    providerRuns: store.providerRuns,
+    audit: store.audit,
+    strongThreshold: config.env.MATCH_SCORE_THRESHOLD,
+    analyzer: null,
+  });
+  // Generator and reviewer arrive with the provider implementations (Phase 9); until then résumés use facts verbatim.
+  const tailoring = new TailoringService({
+    jobs: store.jobs,
+    facts: store.facts,
+    profiles: store.profiles,
+    matches: store.matches,
+    resumes: store.resumes,
+    providerRuns: store.providerRuns,
+    audit: store.audit,
+    renderer: createResumeRenderer(),
+    artifacts: createArtifactWriter(new FileArtifactStore(artifactDir), store.artifacts),
+    generator: null,
+    reviewer: null,
+  });
+  // Drafting with a model arrives with the provider implementations (Phase 9).
+  const applications = new ApplicationService({
+    applications: store.applications,
+    fields: store.applicationFields,
+    coverLetters: store.coverLetters,
+    resumes: store.resumes,
+    jobs: store.jobs,
+    facts: store.facts,
+    profiles: store.profiles,
+    savedAnswers: store.savedAnswers,
+    providerRuns: store.providerRuns,
+    audit: store.audit,
+    renderer: createCoverLetterRenderer(),
+    artifacts: createArtifactWriter(new FileArtifactStore(artifactDir), store.artifacts),
+    drafter: null,
+    uow: (fn) => store.transaction(fn),
+  });
+  const preparer = new BrowserPreparer({
+    store,
+    applications,
+    files: new FileArtifactStore(artifactDir),
+    ownerId,
+    logger,
+    headless: config.env.BROWSER_HEADLESS,
+    profileRoot: path.resolve(config.env.BROWSER_PROFILE_DIR),
+    maxSteps: config.env.BROWSER_MAX_STEPS,
+    sessionTimeoutMs: config.env.BROWSER_TIMEOUT_MS,
+  });
+  const controller = new AbortController();
+  const worker = new Worker({
+    store,
+    discovery,
+    matching,
+    tailoring,
+    applications,
+    preparer,
+    ownerId,
+    workerId: `${hostname()}:${process.pid}`,
+    logger,
+    maxJobsScoredPerRun: config.env.MAX_JOBS_SCORED_PER_RUN,
+  });
+  const stop = () => {
+    controller.abort();
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  logger.info("worker started");
+  await worker.run(controller.signal);
+  await preparer.closeAll();
+  store.close();
+} catch (err) {
+  if (err instanceof ConfigError) {
+    console.error(err.message);
+    process.exit(1);
+  }
+  throw err;
+}

@@ -1,0 +1,159 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Ashby adapter (contract) > derives ids from jobUrl, drops unlisted jobs, and reads compensation 1`] = `
+{
+  "applyUrl": "https://jobs.ashbyhq.com/initech-example/7d1e2f3a-4b5c-4d9e-8f1a-2b3c4d5e6f70/application",
+  "company": "Initech Example",
+  "compensation": {
+    "currency": "GBP",
+    "max": 75000,
+    "min": 60000,
+    "period": "year",
+  },
+  "contentHash": "a51aa3efe7b2285714f7eeb787acabb695c7ded738012258a181a3d8f41ebd2f",
+  "descriptionHtmlSanitized": "<p>Design delightful fictional products.</p><p><strong>About you</strong></p><ul><li>Figma</li><li>Portfolio</li></ul>",
+  "descriptionText": "Design delightful fictional products.
+About you
+• Figma
+• Portfolio",
+  "employmentType": "full_time",
+  "externalId": "initech-example/7d1e2f3a-4b5c-4d9e-8f1a-2b3c4d5e6f70",
+  "filterReasons": [],
+  "firstSeenAt": "2026-10-29T12:00:00.000Z",
+  "id": "ashby:initech-example/7d1e2f3a-4b5c-4d9e-8f1a-2b3c4d5e6f70",
+  "lastSeenAt": "2026-10-29T12:00:00.000Z",
+  "locations": [
+    "London",
+    "Remote - UK",
+  ],
+  "postedAt": "2026-10-25T08:00:00.000Z",
+  "preferredQualifications": [],
+  "removedFromSourceAt": null,
+  "requiredQualifications": [
+    "Figma",
+    "Portfolio",
+  ],
+  "seniority": "unknown",
+  "source": "ashby",
+  "sourceHash": "e1a55af178fe93804ebddc73bcc00e43dedf1519dab0e343de429033df7f7494",
+  "sourceUrl": "https://jobs.ashbyhq.com/initech-example/7d1e2f3a-4b5c-4d9e-8f1a-2b3c4d5e6f70",
+  "sponsorship": {
+    "confidence": 0,
+    "evidence": null,
+    "value": "unknown",
+  },
+  "status": "NORMALIZED",
+  "team": "Product",
+  "title": "Product Designer",
+  "updatedAt": null,
+  "workMode": "hybrid",
+}
+`;
+
+exports[`Greenhouse adapter (contract) > produces stable hashes and snapshot-stable normalization 1`] = `
+{
+  "applyUrl": "https://boards.greenhouse.io/acmefictional/jobs/4012001",
+  "company": "Acme Fictional Ltd",
+  "compensation": null,
+  "contentHash": "2c1a85acfd047c3ff84ac9482ca3316902db74e64a09213f7cddb69f7c3e2f58",
+  "descriptionHtmlSanitized": "<p>Build our billing platform.</p><h3>What you'll need</h3><ul><li>5+ years of TypeScript</li><li>PostgreSQL experience</li></ul><h3>Nice to have</h3><ul><li>Kafka</li></ul><p>Unfortunately we are unable to provide visa sponsorship for this role.</p><a>x</a>",
+  "descriptionText": "Build our billing platform.
+What you'll need
+• 5+ years of TypeScript
+• PostgreSQL experience
+Nice to have
+• Kafka
+Unfortunately we are unable to provide visa sponsorship for this role.
+x",
+  "employmentType": "unknown",
+  "externalId": "acmefictional/4012001",
+  "filterReasons": [],
+  "firstSeenAt": "2026-10-29T12:00:00.000Z",
+  "id": "greenhouse:acmefictional/4012001",
+  "lastSeenAt": "2026-10-29T12:00:00.000Z",
+  "locations": [
+    "Remote - Europe",
+  ],
+  "postedAt": null,
+  "preferredQualifications": [
+    "Kafka",
+  ],
+  "removedFromSourceAt": null,
+  "requiredQualifications": [
+    "5+ years of TypeScript",
+    "PostgreSQL experience",
+  ],
+  "seniority": "senior",
+  "source": "greenhouse",
+  "sourceHash": "ee482cf15e61d860bb14244d1fdd7cf811a1e58f17bde8672e6a517ed892f34b",
+  "sourceUrl": "https://boards.greenhouse.io/acmefictional/jobs/4012001",
+  "sponsorship": {
+    "confidence": 0.8,
+    "evidence": "Unfortunately we are unable to provide visa sponsorship for this role.",
+    "value": "not_offered",
+  },
+  "status": "NORMALIZED",
+  "team": "Engineering",
+  "title": "Senior Backend Engineer",
+  "updatedAt": "2026-10-20T14:00:00.000Z",
+  "workMode": "remote",
+}
+`;
+
+exports[`Lever adapter (contract) > normalizes postings using explicit lists, workplace type, and salary 1`] = `
+{
+  "applyUrl": "https://jobs.lever.co/globexexample/0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e/apply",
+  "company": "Globexexample",
+  "compensation": {
+    "currency": "EUR",
+    "max": 120000,
+    "min": 95000,
+    "period": "year",
+  },
+  "contentHash": "4ca769619b97df17aacedd923ed8da58b5f80eefd90fa6907387b2fff8a0617a",
+  "descriptionHtmlSanitized": "<div>Run our Kubernetes platform.</div>
+<h3>Requirements</h3><ul><li>Go or Rust</li><li>Kubernetes in production</li></ul>
+<h3>Bonus points</h3><ul><li>Terraform</li></ul>
+<div>Visa sponsorship is available for this position.</div>",
+  "descriptionText": "Run our Kubernetes platform.
+Requirements
+• Go or Rust
+• Kubernetes in production
+Bonus points
+• Terraform
+Visa sponsorship is available for this position.",
+  "employmentType": "full_time",
+  "externalId": "globexexample/0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e",
+  "filterReasons": [],
+  "firstSeenAt": "2026-10-29T12:00:00.000Z",
+  "id": "lever:globexexample/0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e",
+  "lastSeenAt": "2026-10-29T12:00:00.000Z",
+  "locations": [
+    "Amsterdam",
+    "Remote - Netherlands",
+  ],
+  "postedAt": "2026-09-21T14:13:20.000Z",
+  "preferredQualifications": [
+    "Terraform",
+  ],
+  "removedFromSourceAt": null,
+  "requiredQualifications": [
+    "Go or Rust",
+    "Kubernetes in production",
+  ],
+  "seniority": "staff",
+  "source": "lever",
+  "sourceHash": "b962fdbb1e106382df4aeda5315b25d5f652a842e79dff740f35a9120a8f3828",
+  "sourceUrl": "https://jobs.lever.co/globexexample/0b6c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e",
+  "sponsorship": {
+    "confidence": 0.7,
+    "evidence": "Visa sponsorship is available for this position.",
+    "value": "offered",
+  },
+  "status": "NORMALIZED",
+  "team": "Platform",
+  "title": "Staff Platform Engineer",
+  "updatedAt": null,
+  "workMode": "hybrid",
+}
+`;

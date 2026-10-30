@@ -1,0 +1,24 @@
+{
+  "name": "@career-agent/documents",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@career-agent/ai": "workspace:*",
+    "@career-agent/domain": "workspace:*",
+    "@career-agent/security": "workspace:*",
+    "docx": "^9.15.0",
+    "mammoth": "^1.13.0",
+    "playwright": "1.64.1",
+    "unpdf": "^2.0.0"
+  },
+  "devDependencies": {
+    "@career-agent/testkit": "workspace:*"
+  }
+}
