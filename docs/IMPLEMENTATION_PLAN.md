@@ -133,9 +133,19 @@ OpenAI Agents SDK orchestrator; Claude Agent SDK provider (ADR-008 options re-ve
   - API `GET /api/v1/system/providers` and `/system/usage`; UI "AI & usage" page.
 - **Not done / deferred:** "compare" mode routes like "hybrid" (no side-by-side runs yet). No live smoke test was run (needs your explicit authorization, `ENABLE_LIVE_AI_TESTS=true`, an API key, and a Claude Code login). Claude sign-in is checked on first use, not by the health report. Model-assisted preparation has been tested with scripted models only, never against a real form or model. Per-day usage history and a monthly budget cap are not built.
 
-## Phase 10 — Hardening and release ☐
+## Phase 10 — Hardening and release ☑
 
 Full E2E suite; accessibility pass; dependency and secret audit; backup/restore test; README/USER_GUIDE/OPERATIONS complete; release-check skill run; fictional demo mode.
+
+- **Done (2026-10-30):** 479 unit/integration tests, 26 browser and E2E tests, the build, and the fixture scan green.
+  - **E2E and accessibility (ADR-038):** the real UI, API, and worker run in the demo, from a fictional job through a tailored and approved résumé, an application, the worker filling the fictional form, and owner answers to "ready for review", with approval disabled. axe (WCAG 2.1 A/AA) finds no serious or critical issue on any main page or workflow state.
+  - **Demo mode (ADR-037):** `pnpm demo`, `DEMO_MODE`, fictional seed, local forms only, a banner in the UI.
+  - **Backup/restore:** `pnpm data:backup` / `data:restore`, with a SHA-256 manifest, verification, and `--force` with move-aside; round-trip, wrong-key, tamper, and overwrite tests.
+  - **Security review and fixes (ADR-039):** the `security-reviewer` subagent reviewed Phases 7–9; all nine findings were fixed and tested (option clicks, WebSockets/WebRTC, `SUBMITTED` evidence, GET forms and navigation, crash reconciliation, revocation on every pre-consume failure, full-value form hash, URL query stripping, more secret labels).
+  - **Dependency and secret audit:** `pnpm audit --prod` finds no known vulnerabilities. The full audit has one moderate esbuild advisory reachable only through `drizzle-kit` (dev-only migration generator; no dev server is run), accepted. No secrets or private files are tracked (the only matches are deliberate fake samples in redaction/scanner tests). CI runs `pnpm audit --audit-level high` and gitleaks.
+  - **Docs:** README (demo, AI providers, browser and approval flow, sources, limitations, roadmap), USER_GUIDE, OPERATIONS (backup, keys, uncertain submissions, quotas, retention, demo, troubleshooting), SECURITY.md, threat model T52–T54.
+  - Second security review (ADR-040): providers, orchestrator, local API guard, idempotency, worker-written data, and the import boundary; no high-severity findings; six fixed with tests, one accepted.
+- **Not done / deferred:** No live AI smoke test (needs your authorization). A clean-install check runs in CI, not locally. The release-check skill is manual-only (`disable-model-invocation`), so its checks were run by hand. Run `/release-check` yourself for the formal report.
 
 ## Cross-cutting rules
 

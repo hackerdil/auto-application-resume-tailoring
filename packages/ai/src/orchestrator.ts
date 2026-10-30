@@ -1,6 +1,7 @@
 import { tool, type JsonSchemaDefinition, type Tool } from "@openai/agents-core";
 import { z } from "zod";
 import { RunBudget, type ProviderRunRecord, type RunLimits } from "@career-agent/domain";
+import { redact } from "@career-agent/security";
 import { DELEGATION_PROMPT, DelegationOutput, renderDelegation } from "./prompts/delegation.v1.js";
 import type { OpenAIAgentsProvider } from "./providers/openai.js";
 import { budgeted } from "./match-analyzer.js";
@@ -64,6 +65,19 @@ const record = (
   errorClass: null,
 });
 
+const TOOL_ERROR_TEXT: Record<string, string> = {
+  POLICY: "Refused by Career Agent's safety rules. Ask the owner instead.",
+  VALIDATION: "Invalid input or an outdated handle. Call inspect_page again.",
+  BUDGET_EXCEEDED: "This run has used its budget. Stop and report.",
+};
+
+/** Our error code, also when the SDK wraps the tool's error as its cause. */
+function errorCode(err: unknown): string {
+  for (let e: unknown = err, i = 0; e instanceof Error && i < 3; e = e.cause, i++)
+    if ("code" in e && typeof e.code === "string") return e.code;
+  return "";
+}
+
 type NonStrictSchema = Extract<JsonSchemaDefinition["schema"], { additionalProperties: true }>;
 
 /** Non-strict function-tool parameters from a Zod object schema; the tool re-validates every input. */
@@ -100,12 +114,11 @@ export async function orchestrate<T extends z.ZodType>(
       execute: async (input: unknown) => {
         budget.use("toolCalls");
         toolCalls++;
-        return JSON.stringify(await t.call(input)).slice(0, 20_000);
+        const out = await t.call(input);
+        return JSON.stringify(redact(out, { extraValues: o.secretValues ?? [] })).slice(0, 20_000);
       },
-      errorFunction: (_ctx, err) =>
-        err instanceof Error && "code" in err
-          ? `Refused: ${err.message.slice(0, 300)}`
-          : "The tool failed.",
+      // Fixed text per error class: no raw messages (paths, page text) reach the model.
+      errorFunction: (_ctx, err) => TOOL_ERROR_TEXT[errorCode(err)] ?? "The tool failed.",
     });
 
   const delegate: OrchestratorTool = {
@@ -157,6 +170,29 @@ export async function orchestrate<T extends z.ZodType>(
     budget,
     (res, req) => {
       o.onRun?.(record(o.traceId, req.taskType, o.prompt, res.meta));
+    },
+    // A failed orchestrator run still leaves a provider_runs row (the router's failure recorder is not in path).
+    (err, req) => {
+      o.onRun?.({
+        ...record(o.traceId, req.taskType, o.prompt, {
+          provider: "openai",
+          model: o.openai.cfg.model,
+          traceId: o.traceId,
+          requestId: null,
+          durationMs: 0,
+          usage: {
+            inputTokens: null,
+            cachedInputTokens: null,
+            reasoningTokens: null,
+            outputTokens: null,
+          },
+          costUsd: null,
+          toolCalls,
+          delegated: false,
+          fallback: false,
+        }),
+        errorClass: err instanceof Error && "code" in err ? String(err.code) : "error",
+      });
     },
   );
   const out = await runStructured({

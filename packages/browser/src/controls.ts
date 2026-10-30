@@ -36,14 +36,15 @@ export function classifyControl(
   if ((e.tag === "input" || e.tag === "select" || e.tag === "textarea") && FIELD_TYPES.has(e.type))
     return "field";
   if (e.role === "combobox") return "field";
-  if (e.tag === "a") return "link";
-  if (e.role === "option") return "option";
   const caption = (e.text || e.label || e.value)
     .replace(/\s+/g, " ")
     .trim()
     .replace(/[›»→…]+$/, "")
     .trim();
+  // Checked before roles: an "option" or link that says "Submit application" is still a submit control.
   if (SUBMIT_WORDS.test(caption)) return "submit";
+  if (e.tag === "a") return "link";
+  if (e.role === "option") return "option";
   if (e.type === "image") return "submit";
   if (NAVIGATION_LABELS.test(caption)) return "safe_navigation";
   if (e.type === "submit" || e.type === "reset") return "submit";

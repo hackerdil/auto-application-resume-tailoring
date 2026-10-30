@@ -259,31 +259,38 @@ export function registerApplicationRoutes(
       });
       if (new URL(m.job.applyUrl ?? m.job.sourceUrl).origin !== review.origin)
         throw new PolicyError("The form is on a different site than the job posting.");
-      const { approvalId, secret, binding } = d.approvals.issue(
-        d.ownerId,
-        buildBindingMaterial({
-          applicationId: id,
-          ownerId: d.ownerId,
-          job: m.job,
-          answers: m.answers,
-          resumeHash: m.resumeHash,
-          coverLetterHash: m.coverLetterHash,
-          formSnapshotHash: review.formSnapshotHash,
-          origin: review.origin,
-          submitControl: review.submitControl,
-        }),
-        req.ctx.traceId,
-      );
-      d.store.tasks.enqueue(
-        SUBMIT_APPLICATION_TASK,
-        {
-          applicationId: id,
-          approvalId,
-          sealedSecret: sealApprovalSecret(d.sessionSecret, approvalId, secret),
-          traceId: req.ctx.traceId,
-        },
-        `${browserKeyPrefix(id)}submit:${approvalId}`,
-      );
+      const approvals = d.approvals;
+      const submitControl = review.submitControl;
+      const { formSnapshotHash, origin } = review;
+      // Issue and queue together: an approval never exists without its submission task.
+      const { approvalId, binding } = d.store.transaction(() => {
+        const { approvalId, secret, binding } = approvals.issue(
+          d.ownerId,
+          buildBindingMaterial({
+            applicationId: id,
+            ownerId: d.ownerId,
+            job: m.job,
+            answers: m.answers,
+            resumeHash: m.resumeHash,
+            coverLetterHash: m.coverLetterHash,
+            formSnapshotHash,
+            origin,
+            submitControl,
+          }),
+          req.ctx.traceId,
+        );
+        d.store.tasks.enqueue(
+          SUBMIT_APPLICATION_TASK,
+          {
+            applicationId: id,
+            approvalId,
+            sealedSecret: sealApprovalSecret(d.sessionSecret, approvalId, secret),
+            traceId: req.ctx.traceId,
+          },
+          `${browserKeyPrefix(id)}submit:${approvalId}`,
+        );
+        return { approvalId, binding };
+      });
       return { statusCode: 202, body: { approvalId, expiresAt: binding.expiresAt } };
     });
   });

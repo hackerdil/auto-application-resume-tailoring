@@ -64,6 +64,7 @@ export const COLLECTOR = String.raw`(() => {
         visible: isVisible,
         inForm: !!form,
         formAction: form && form.getAttribute ? form.getAttribute("action") || "" : "",
+        formMethod: form && form.getAttribute ? (form.getAttribute("method") || "get").toLowerCase() : "",
         text: tag === "button" || tag === "a" || el.getAttribute("role") === "button" || el.getAttribute("role") === "option" ? text(el).slice(0, 120) : "",
         href: tag === "a" ? el.getAttribute("href") || "" : "",
         invalid: el.getAttribute("aria-invalid") === "true",

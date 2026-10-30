@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ModeBanner } from "@/components/ModeBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </a>
           </nav>
         </header>
+        <ModeBanner />
         <main id="main">{children}</main>
       </body>
     </html>

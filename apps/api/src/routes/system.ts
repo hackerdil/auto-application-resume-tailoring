@@ -28,6 +28,8 @@ export function registerSystemRoutes(
     d.store.sqlite.prepare("SELECT 1").get();
     return {
       status: "ready",
+      demo: d.config.env.DEMO_MODE,
+      mode: d.config.env.OPERATING_MODE,
       providers: {
         openai: publicStatus(d.config.providers.openai),
         claude: publicStatus(d.config.providers.claude),

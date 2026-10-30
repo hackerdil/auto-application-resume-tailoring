@@ -231,3 +231,11 @@ ol.steps li {
   color: var(--muted);
   font-style: italic;
 }
+
+.banner {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  margin: 0;
+  padding: 8px 16px;
+  text-align: center;
+}

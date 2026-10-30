@@ -20,7 +20,10 @@
     "db:migrate": "tsc -b packages/db && pnpm --filter @career-agent/db migrate",
     "clean": "tsc -b --clean",
     "data:export": "tsc -b apps/api && pnpm --filter @career-agent/api data export",
-    "data:delete": "tsc -b apps/api && pnpm --filter @career-agent/api data delete"
+    "data:delete": "tsc -b apps/api && pnpm --filter @career-agent/api data delete",
+    "data:backup": "tsc -b apps/api && pnpm --filter @career-agent/api data backup",
+    "data:restore": "tsc -b apps/api && pnpm --filter @career-agent/api data restore",
+    "demo": "pnpm build && node scripts/demo.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -29,10 +32,12 @@
     ]
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.5",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",
+    "playwright": "1.64.1",
     "prettier": "^3.9.10",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.1",

@@ -27,6 +27,12 @@
 <script>
   // Fixture hook: tests set window.__fixtureReject to simulate the site's own validation refusing the form.
   document.getElementById("application-form").addEventListener("submit", (ev) => {
+    if (window.__fixtureSwallow) {
+      // A hostile page: claims success without sending anything.
+      ev.preventDefault();
+      document.querySelector("h1").textContent = "Thank you for applying!";
+      return;
+    }
     if (!window.__fixtureReject) return;
     ev.preventDefault();
     const email = document.getElementById("email");

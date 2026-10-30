@@ -38,12 +38,16 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
   {
-    // ADR-007: model-facing code must never reach the deterministic submission service.
+    // ADR-007: model-facing code must never reach the deterministic submission service. policy.ts is the one
+    // exception in the browser package: it creates each context's (closed) write gate.
     files: [
       "packages/ai/**/*.ts",
       "packages/browser/src/tools/**/*.ts",
       "packages/browser/src/toolbox.ts",
       "packages/browser/src/preparation/**/*.ts",
+      "packages/browser/src/adapters/**/*.ts",
+      "packages/browser/src/{controls,snapshot,session,collector}.ts",
+      "apps/worker/src/preparer.ts",
     ],
     rules: {
       "no-restricted-imports": [

@@ -122,6 +122,17 @@ describe("Greenhouse-like form", () => {
     expect(out.ok ? "" : out.error).toMatch(/older view/);
   });
 
+  it("blocks WebSockets and removes WebRTC", async () => {
+    const { session } = await fixture("/greenhouse", new FakeAnswers({}));
+    await session.page.evaluate(`new Promise((resolve) => {
+      const ws = new WebSocket("${server.origin.replace("http", "ws")}/socket");
+      ws.onclose = () => resolve(null);
+      ws.onerror = () => resolve(null);
+    })`);
+    expect(session.blocked.some((b) => b.reason === "websocket")).toBe(true);
+    expect(await session.page.evaluate("typeof RTCPeerConnection")).toBe("undefined");
+  });
+
   it("blocks navigation off the allowlist and closes popups", async () => {
     const { session } = await fixture("/greenhouse", new FakeAnswers({}));
     await session.page.evaluate("void window.open(location.href)");

@@ -1,9 +1,5 @@
-import { snapshotHash } from "@career-agent/browser";
-import {
-  submitControlIdentity,
-  SubmissionService,
-  type SubmitResult,
-} from "@career-agent/browser/submission";
+import { snapshotHash, submitControlIdentity } from "@career-agent/browser";
+import { SubmissionService, type SubmitResult } from "@career-agent/browser/submission";
 import type { Store } from "@career-agent/db";
 import type { FileArtifactStore } from "@career-agent/documents";
 import {
@@ -45,9 +41,29 @@ export class Submitter {
       mode: o.mode,
       ...(o.outcomeTimeoutMs ? { outcomeTimeoutMs: o.outcomeTimeoutMs } : {}),
     });
-    for (const a of o.store.applications.list(o.ownerId))
+    for (const a of o.store.applications.list(o.ownerId)) {
       if (a.state === "APPROVED_TO_SUBMIT")
         o.approvals.revoke(a.id, "browser restarted", "startup");
+      // A worker that stopped mid-submission cannot know whether the click happened: the owner decides.
+      if (a.state === "SUBMITTING") {
+        const attempt = o.store.submissionAttempts.latest(a.id);
+        if (attempt && !attempt.endedAt)
+          o.store.submissionAttempts.finish(attempt.id, "uncertain", {
+            url: null,
+            title: "",
+            headings: [],
+            errors: [],
+            writesSent: 0,
+            note: "Career Agent stopped during this submission.",
+          });
+        o.store.applications.transition(a.id, "SUBMISSION_UNCERTAIN", {
+          actor: "system",
+          mode: o.mode,
+          traceId: "startup",
+          metadata: { reason: "worker restarted during submission" },
+        });
+      }
+    }
   }
 
   async submit(
@@ -61,7 +77,13 @@ export class Submitter {
       this.o.approvals.revoke(applicationId, "browser closed", traceId);
       throw new ApprovalError("binding_mismatch", "The browser window is no longer open.");
     }
-    const secret = openApprovalSecret(this.o.sessionSecret, approvalId, sealedSecret);
+    let secret: string;
+    try {
+      secret = openApprovalSecret(this.o.sessionSecret, approvalId, sealedSecret);
+    } catch (err) {
+      this.o.approvals.revoke(applicationId, "approval token unreadable", traceId);
+      throw err;
+    }
     const verify = (artifactId: string, sha256: string) => {
       const art = this.o.store.artifacts.get(artifactId);
       if (!art || art.sha256 !== sha256) throw new PolicyError("An approved file is missing.");

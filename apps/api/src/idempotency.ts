@@ -5,6 +5,9 @@ import { HttpError } from "./http-errors.js";
 
 const KEY_RE = /^[A-Za-z0-9_-]{8,128}$/;
 
+/** Keys whose first request is still running (the API is a single local process). */
+const inFlight = new Set<string>();
+
 /**
  * Executes a mutating handler at most once per Idempotency-Key (spec §18). A retried request with the same key
  * and body gets the stored response; the same key with a different body is a 409.
@@ -34,8 +37,17 @@ export async function idempotent(
     void reply.header("idempotent-replay", "true").code(stored.statusCode);
     return stored.body;
   }
-  const result = await handler();
-  if (result.statusCode < 300) repo.save(key, scope, requestHash, result);
-  void reply.code(result.statusCode);
-  return result.body;
+  // A concurrent duplicate must not run the handler a second time while the first is still in progress.
+  const slot = `${scope}\u0000${key}`;
+  if (inFlight.has(slot))
+    throw new HttpError(409, "REQUEST_IN_PROGRESS", "This request is already being processed.");
+  inFlight.add(slot);
+  try {
+    const result = await handler();
+    if (result.statusCode < 300) repo.save(key, scope, requestHash, result);
+    void reply.code(result.statusCode);
+    return result.body;
+  } finally {
+    inFlight.delete(slot);
+  }
 }

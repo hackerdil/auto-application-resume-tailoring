@@ -92,3 +92,4 @@ export {
   type DeletionTargets,
 } from "./local-data.js";
 export { bootstrap, type Bootstrapped } from "./bootstrap.js";
+export { createBackup, verifyBackup, restoreBackup, type BackupManifest } from "./backup.js";

@@ -15,6 +15,7 @@ export function budgeted(
   provider: AIProvider,
   budget: RunBudget,
   onRun: (r: ProviderResult, req: ProviderRequest) => void,
+  onError?: (err: unknown, req: ProviderRequest) => void,
 ): AIProvider {
   return {
     name: provider.name,
@@ -22,11 +23,18 @@ export function budgeted(
     run: async (req) => {
       budget.use("modelTurns");
       budget.checkInput(req.messages.map((m) => m.content).join("\n"));
-      const res = await provider.run({
-        ...req,
-        limits: budget.limits,
-        signal: AbortSignal.any([req.signal, budget.signal]),
-      });
+      let res: ProviderResult;
+      try {
+        res = await provider.run({
+          ...req,
+          // Only what is left of the run: a call cannot overshoot the run's cost cap on its own.
+          limits: budget.remaining(),
+          signal: AbortSignal.any([req.signal, budget.signal]),
+        });
+      } catch (err) {
+        onError?.(err, req);
+        throw err;
+      }
       onRun(res, req);
       if (res.meta.costUsd !== null) budget.addCost(res.meta.costUsd);
       budget.checkAlive();

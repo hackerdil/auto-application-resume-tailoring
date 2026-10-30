@@ -43,7 +43,10 @@ export class BrowserSession {
   static async open(opts: SessionOptions): Promise<BrowserSession> {
     const launch = {
       headless: opts.headless,
-      args: ["--disable-features=AutofillServerCommunication"],
+      args: [
+        "--disable-features=AutofillServerCommunication",
+        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+      ],
     };
     const contextOptions = {
       acceptDownloads: false,

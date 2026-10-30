@@ -51,7 +51,9 @@ Build a local-first, single-applicant, human-in-the-loop job discovery and appli
 - Lint: `pnpm lint`
 - Typecheck: `pnpm typecheck`
 - Unit/integration tests: `pnpm test`
-- Browser tests: `pnpm test:browser` (local fixture forms only)
+- Browser tests: `pnpm test:browser` (local fixture forms only; includes the E2E/accessibility suite, so run `pnpm build` first)
+- Fictional demo: `pnpm demo` (DEMO_MODE, dry-run, no AI, separate `data/demo/`)
+- Backup/restore: `pnpm data:backup`, `pnpm data:restore --from <dir> [--force]`
 - Full validation: `pnpm check`
 - Build: `pnpm build`
 - Database migrate: `pnpm db:migrate`

@@ -253,6 +253,37 @@ describe("approval and submission (APPROVAL_MODEL §5)", () => {
     expect(server.writes).toEqual([]);
   });
 
+  it("never records SUBMITTED from page text when nothing was sent", async () => {
+    const r = await reviewed();
+    const a = r.approve();
+    await r.live.session.page.evaluate("window.__fixtureSwallow = true");
+    const out = await r.submit(a);
+    expect(out.outcome).toBe("uncertain");
+    expect(out.evidence.writesSent).toBe(0);
+    expect(r.state()).toBe("SUBMISSION_UNCERTAIN");
+    expect(server.writes).toEqual([]);
+  });
+
+  it("marks a submission interrupted by a worker restart as uncertain", async () => {
+    const r = await reviewed();
+    const a = r.approve();
+    r.approvals.consumeAndStart(a.approvalId, r.app.id, "t"); // the click may have happened, then the worker died
+    expect(r.state()).toBe("SUBMITTING");
+    new Submitter({
+      store: r.s.store,
+      applications: r.s.service,
+      approvals: r.approvals,
+      preparer: r.preparer,
+      files: r.s.files,
+      ownerId: r.s.ownerId,
+      sessionSecret: r.sessionSecret,
+      mode: "review-each",
+      logger: createLogger({ level: "silent" }),
+    });
+    expect(r.state()).toBe("SUBMISSION_UNCERTAIN");
+    expect(r.s.store.submissionAttempts.latest(r.app.id)).toMatchObject({ outcome: "uncertain" });
+  });
+
   it("revokes approvals when the browser is gone", async () => {
     const r = await reviewed();
     const a = r.approve();

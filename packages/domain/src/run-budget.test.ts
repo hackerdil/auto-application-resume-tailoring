@@ -60,3 +60,23 @@ describe("RunBudget", () => {
     }).toThrow(/aborted/);
   });
 });
+
+describe("RunBudget.remaining", () => {
+  it("hands the next call only what is left of the run's turns and cost", () => {
+    const b = new RunBudget({
+      deadlineMs: 60_000,
+      maxModelTurns: 4,
+      maxToolCalls: 0,
+      maxBrowserSteps: 0,
+      maxRetries: 1,
+      maxInputChars: 1_000,
+      maxOutputTokens: 100,
+      maxCostUsd: 1,
+    });
+    b.use("modelTurns");
+    b.addCost(0.75);
+    expect(b.remaining()).toMatchObject({ maxModelTurns: 4, maxCostUsd: 0.25 });
+    b.use("modelTurns");
+    expect(b.remaining().maxModelTurns).toBe(3);
+  });
+});

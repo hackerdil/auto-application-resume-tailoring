@@ -81,6 +81,14 @@ Nothing is sent to an employer without your approval of that specific applicatio
 
 **AI & usage** shows which AI services are set up and whether they are working, and what calls have cost over the last day, week, month, or year. Calls without a known price are counted separately; Claude's figure is an estimate that counts against your plan's limits. Everything in Career Agent still works without AI: suggestions are then rule-based, and you write your own reasons for applying.
 
+## Trying the demo
+
+`pnpm demo` starts a fictional copy of Career Agent: fictional facts about "Alex Example", three fictional jobs, and fictional application forms on your own machine. A banner at the top says when you are in the demo. You can tailor a résumé, start an application, and watch the form being filled, but approving and submitting are disabled.
+
+## Backups
+
+Run `pnpm data:backup` now and then and keep the folder somewhere safe, together with your `DATA_ENCRYPTION_KEY` kept separately (for example in a password manager). To move to a new machine, copy the backup and your `.env`, then run `pnpm data:restore --from <folder>`.
+
 ## Your data
 
 Use **Export my data** for a full copy. To erase everything locally, run `pnpm data:delete --confirm "DELETE MY DATA"`.

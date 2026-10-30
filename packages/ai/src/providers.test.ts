@@ -12,6 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  PolicyError,
   ProviderAuthenticationError,
   ProviderPolicyError,
   ProviderRateLimitError,
@@ -440,5 +441,51 @@ describe("orchestrate (OpenAI + delegate_to_claude)", () => {
       "delegate_to_claude",
       "inspect_page",
     ]);
+  });
+});
+
+describe("budget and failure accounting (security review M2/L3)", () => {
+  it("passes each call only the remaining cost and records a failed orchestrator run", async () => {
+    let seen = "";
+    const model = new ScriptedModel([
+      () => call("explode", {}, "c1"),
+      (req) => {
+        seen = JSON.stringify(req.input);
+        throw new Error("model down");
+      },
+    ]);
+    const openai = new OpenAIAgentsProvider(
+      { apiKey: "test", model: "m", maxTurns: 6, timeoutMs: 10_000 },
+      { modelProvider: provider(model) },
+    );
+    const rows: { errorClass: string | null }[] = [];
+    await expect(
+      orchestrate({
+        openai,
+        claude: null,
+        maxDelegations: 0,
+        tools: [
+          {
+            name: "explode",
+            description: "Fails.",
+            input: z.object({}),
+            call: () => Promise.reject(new PolicyError("ENOENT /Users/secret/path")),
+          },
+        ],
+        taskType: "form_preparation",
+        prompt: { id: "form-preparation", version: "1" },
+        messages: [{ role: "user", content: "Go." }],
+        schema: z.object({ ok: z.boolean() }),
+        limits: LIMITS,
+        signal: new AbortController().signal,
+        traceId: "t",
+        onRun: (r) => rows.push(r),
+      }),
+    ).rejects.toBeTruthy();
+    // The tool's raw error text never reaches the model, only a fixed message for its class.
+    expect(seen).toContain("Refused by Career Agent");
+    expect(seen).not.toContain("/Users/secret/path");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.errorClass).toBeTruthy();
   });
 });

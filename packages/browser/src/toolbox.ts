@@ -406,9 +406,19 @@ export class BrowserToolbox {
       throw new ToolRefused(
         "Submitting is never done by preparation tools. The owner approves and the submission service clicks it (Phase 8).",
       );
-    if (kind !== "safe_navigation" && kind !== "option")
+    // Options are chosen only through select_option/fill_text_field, bound to the owner's answer for that question.
+    if (kind !== "safe_navigation")
       throw new ToolRefused(
         "Only in-form navigation controls (Next, Continue, Add another) can be clicked.",
+      );
+    // A GET form's submit button would send the form's values in the URL: that is the owner's to do.
+    if (
+      info.inForm &&
+      info.formMethod === "get" &&
+      (info.type === "submit" || info.tag === "button")
+    )
+      throw new ToolRefused(
+        "This button would send the form. Continue in the browser window yourself.",
       );
     await el.click();
     await this.session.page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
@@ -456,7 +466,7 @@ export class BrowserToolbox {
   /** The snapshot as a model may see it: no secret values; sensitive answers shown only as "[filled]". */
   modelView(s: PageSnapshot) {
     return {
-      url: s.url,
+      url: `${new URL(s.url).origin}${new URL(s.url).pathname}`,
       origin: s.origin,
       title: s.title,
       headings: s.headings,

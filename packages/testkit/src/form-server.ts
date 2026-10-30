@@ -22,7 +22,9 @@ const PAGES: Record<string, string> = {
 };
 
 /** Local, fictional ATS forms (fixtures/ats-forms) on 127.0.0.1. Records any write so tests can prove nothing was submitted. */
-export async function startFormFixtureServer(): Promise<FormFixtureServer> {
+export async function startFormFixtureServer(
+  opts: { port?: number } = {},
+): Promise<FormFixtureServer> {
   const writes: FormFixtureServer["writes"] = [];
   const state: { mode: FormFixtureServer["mode"] } = { mode: "confirm" };
   const server: Server = createServer((req: IncomingMessage, res) => {
@@ -46,7 +48,10 @@ export async function startFormFixtureServer(): Promise<FormFixtureServer> {
       .writeHead(200, { "content-type": "text/html; charset=utf-8" })
       .end(readFileSync(new URL(`../../../fixtures/ats-forms/${file}`, import.meta.url)));
   });
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(opts.port ?? 0, "127.0.0.1", resolve);
+  });
   const port = (server.address() as AddressInfo).port;
   return {
     origin: `http://127.0.0.1:${port}`,

@@ -20,7 +20,8 @@ export type BlockedReason =
   | "submit_endpoint"
   | "scheme"
   | "private_network"
-  | "duplicate_write";
+  | "duplicate_write"
+  | "websocket";
 
 export interface BlockedRequest {
   reason: BlockedReason;
@@ -77,6 +78,22 @@ export async function installRouteGuard(
     });
     await route.abort("blockedbyclient");
   };
+  // WebSockets are not covered by context.route: refuse them all (no supported ATS form needs one).
+  await context.routeWebSocket(/.*/, (ws) => {
+    onBlocked({
+      reason: "websocket",
+      url: ws.url().slice(0, 300),
+      method: "WS",
+      at: new Date().toISOString(),
+    });
+    void ws.close({ code: 1008, reason: "Blocked by Career Agent" });
+  });
+  // WebRTC can open peer connections around the route guard; pages do not get it at all.
+  await context.addInitScript(`(() => {
+    for (const k of ["RTCPeerConnection", "webkitRTCPeerConnection", "RTCDataChannel", "RTCSessionDescription"]) {
+      try { Object.defineProperty(globalThis, k, { value: undefined, configurable: false, writable: false }); } catch {}
+    }
+  })();`);
   await context.route("**/*", (route) =>
     // Fail closed: any error while deciding aborts the request.
     decide(route).catch(() => route.abort("blockedbyclient").catch(() => undefined)),

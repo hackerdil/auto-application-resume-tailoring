@@ -27,6 +27,7 @@ const el = (over: Partial<SnapshotElement>): SnapshotElement => ({
   visible: true,
   inForm: true,
   formAction: "",
+  formMethod: "",
   text: "",
   href: "",
   invalid: false,
@@ -39,6 +40,7 @@ const el = (over: Partial<SnapshotElement>): SnapshotElement => ({
   handle: "1.1",
   frame: "main",
   secret: false,
+  secretDigest: "",
   ...over,
 });
 
@@ -103,6 +105,16 @@ describe("control classification", () => {
     ["Do the thing", "unknown"],
   ])("%s → %s", (text, kind) => {
     expect(classifyControl(el({ tag: "button", type: "button", text }))).toBe(kind);
+  });
+
+  it("never lets an option or link that says submit be clicked", () => {
+    expect(
+      classifyControl(el({ tag: "div", type: "div", role: "option", text: "Submit application" })),
+    ).toBe("submit");
+    expect(classifyControl(el({ tag: "a", type: "a", text: "Apply now" }))).toBe("submit");
+    expect(classifyControl(el({ tag: "div", type: "div", role: "option", text: "Berlin" }))).toBe(
+      "option",
+    );
   });
 
   it("treats unlabelled submit buttons and image inputs as submit", () => {

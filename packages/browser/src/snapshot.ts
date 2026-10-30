@@ -1,5 +1,9 @@
 import type { ElementHandle, Frame, Page } from "playwright";
-import { canonicalJson, sha256Hex } from "@career-agent/security";
+import { randomBytes } from "node:crypto";
+import { canonicalJson, hmacSha256Hex, sha256Hex } from "@career-agent/security";
+
+/** Per-process key: secret values are never stored or shown, but a change to one still changes the form hash. */
+const SECRET_DIGEST_KEY = randomBytes(32);
 import { COLLECTOR } from "./collector.js";
 
 export interface RawItem {
@@ -19,6 +23,7 @@ export interface RawItem {
   visible: boolean;
   inForm: boolean;
   formAction: string;
+  formMethod: string;
   text: string;
   href: string;
   invalid: boolean;
@@ -36,6 +41,8 @@ export interface SnapshotElement extends Omit<RawItem, "value"> {
   /** Redacted for secrets (passwords, one-time codes, card/ID numbers). */
   value: string;
   secret: boolean;
+  /** For secrets: a keyed digest (per process) so a changed value still changes the form hash. */
+  secretDigest: string;
 }
 
 export interface PageSnapshot {
@@ -50,7 +57,7 @@ export interface PageSnapshot {
 }
 
 const SECRET_LABEL =
-  /\b(password|passcode|pass code|one[- ]?time|otp|verification code|security code|2fa|mfa|authenticator|ssn|social security|cvv|cvc|card number|iban)\b/i;
+  /\b(password|passcode|pass code|one[- ]?time|otp|verification code|security code|2fa|mfa|authenticator|ssn|social security|cvv|cvc|card number|iban|token|api[- ]?key|access key|secret|pin|recovery code|backup code|passport|licen[cs]e number|tax id)\b/i;
 const SECRET_AUTOCOMPLETE = /^(current-password|new-password|one-time-code|cc-number|cc-csc)$/i;
 
 export function isSecretField(
@@ -136,7 +143,9 @@ export async function takeSnapshot(
         handle,
         frame: frameLabel,
         secret,
-        value: secret && item.value ? "[REDACTED]" : item.value.slice(0, 2000),
+        secretDigest: secret && item.value ? hmacSha256Hex(SECRET_DIGEST_KEY, item.value) : "",
+        // Full values: the form hash must bind every character the owner approved (model views truncate).
+        value: secret && item.value ? "[REDACTED]" : item.value,
       });
     });
   }
@@ -186,6 +195,9 @@ export function snapshotHash(s: PageSnapshot): string {
           r: e.required,
           o: e.options,
           v: e.value,
+          s: e.secretDigest,
+          a: e.formAction,
+          m: e.formMethod,
           c: e.checked,
           x: e.text,
           d: e.disabled,

@@ -1,7 +1,7 @@
 import { sha256Hex } from "@career-agent/security";
-import type { FieldType } from "@career-agent/domain";
+import type { FieldType, SubmitControlIdentity } from "@career-agent/domain";
 import { classifyControl } from "../controls.js";
-import type { PageSnapshot, SnapshotElement } from "../snapshot.js";
+import { fingerprint, type PageSnapshot, type SnapshotElement } from "../snapshot.js";
 
 export type AdapterId = "greenhouse" | "lever" | "ashby" | "generic";
 
@@ -240,4 +240,17 @@ export function adapterFor(url: string, atsMarker = ""): AtsAdapter {
 
 export function adapterById(id: string): AtsAdapter {
   return ADAPTERS.find((a) => a.id === id) ?? genericAdapter;
+}
+
+/** Identity of a submit control as stored in an approval binding (computing it never clicks anything). */
+export function submitControlIdentity(
+  adapter: AtsAdapter,
+  e: SnapshotElement,
+): SubmitControlIdentity {
+  return {
+    adapter: adapter.id,
+    selectorFingerprint: fingerprint(e),
+    accessibleName: (e.text || e.label || e.value).replace(/\s+/g, " ").trim().slice(0, 120),
+    frameUrl: e.frame,
+  };
 }

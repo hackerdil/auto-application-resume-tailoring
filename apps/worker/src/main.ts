@@ -105,6 +105,9 @@ try {
     profileRoot: path.resolve(config.env.BROWSER_PROFILE_DIR),
     maxSteps: config.env.BROWSER_MAX_STEPS,
     sessionTimeoutMs: config.env.BROWSER_TIMEOUT_MS,
+    // The fictional demo's forms run on this machine; nothing else can be opened then.
+    allowPrivateNetwork: config.env.DEMO_MODE,
+    localFormsOnly: config.env.DEMO_MODE,
     assist:
       config.env.BROWSER_MODEL_ASSIST && ai.openai
         ? {

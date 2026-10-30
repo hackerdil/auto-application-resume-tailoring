@@ -65,6 +65,19 @@ export class RunBudget {
     this.controller.abort(new BudgetExceededError(reason, `Run ${reason}.`));
   }
 
+  /**
+   * Limits for the next provider call: what is left of this run's turns and cost, so a single call (for example
+   * Claude's maxBudgetUsd) can never spend more than the run has remaining.
+   */
+  remaining(): RunLimits {
+    return {
+      ...this.limits,
+      maxModelTurns: Math.max(1, this.limits.maxModelTurns - this.counts.modelTurns + 1),
+      maxCostUsd:
+        this.limits.maxCostUsd === null ? null : Math.max(0, this.limits.maxCostUsd - this.costUsd),
+    };
+  }
+
   snapshot() {
     return { ...this.counts, costUsd: this.costUsd };
   }

@@ -108,6 +108,8 @@ const EnvSchema = z.object({
   OPERATING_MODE: z
     .enum(["research-only", "prepare", "review-each", "dry-run"])
     .default("review-each"),
+  /** Fictional demo (`pnpm demo`): dry-run only, no AI providers, browser limited to local *.localhost forms. */
+  DEMO_MODE: bool(false),
   SCREENSHOT_RETENTION_DAYS: int(7, 0, 365),
   STORE_REDACTED_SCREENSHOTS: bool(false),
 
@@ -155,9 +157,14 @@ export function loadConfig(source: Record<string, string | undefined> = process.
   }
   const env = parsed.data;
   const warnings: string[] = [];
+  if (env.DEMO_MODE && env.OPERATING_MODE !== "dry-run")
+    throw new ConfigError([
+      "DEMO_MODE=true requires OPERATING_MODE=dry-run (the demo never submits).",
+    ]);
 
   let openai: ProviderStatus = { enabled: false };
-  if (env.OPENAI_ENABLED) {
+  // The demo uses fictional data and never contacts an AI provider.
+  if (env.OPENAI_ENABLED && !env.DEMO_MODE) {
     const missing = [
       !env.OPENAI_API_KEY && "OPENAI_API_KEY",
       !env.OPENAI_MODEL && "OPENAI_MODEL",
@@ -169,9 +176,8 @@ export function loadConfig(source: Record<string, string | undefined> = process.
   }
 
   // Claude subscription mode authenticates through the local Claude Code login, checked at runtime by health().
-  const claude: ProviderStatus = env.CLAUDE_ENABLED
-    ? { enabled: true, ready: true }
-    : { enabled: false };
+  const claude: ProviderStatus =
+    env.CLAUDE_ENABLED && !env.DEMO_MODE ? { enabled: true, ready: true } : { enabled: false };
 
   if (!env.LOCAL_SESSION_SECRET)
     warnings.push("LOCAL_SESSION_SECRET is not set; the API and approvals are disabled.");
@@ -221,7 +227,7 @@ export function providerSettings(config: AppConfig) {
           : null,
     },
     claude: {
-      enabled: e.CLAUDE_ENABLED,
+      enabled: config.providers.claude.enabled,
       model: e.CLAUDE_MODEL,
       workingDirectory: e.CLAUDE_WORKING_DIRECTORY,
       maxTurns: e.CLAUDE_MAX_TURNS,

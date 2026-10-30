@@ -9,6 +9,7 @@ import {
   CLOSE_BROWSER_TASK,
   REFRESH_REVIEW_TASK,
   SUBMIT_APPLICATION_TASK,
+  CareerAgentError,
   type ApplicationService,
   type DiscoveryService,
   type MatchingService,
@@ -251,10 +252,9 @@ export class Worker {
       if (rec && !rec.endedAt)
         this.d.store.browserSessions.update(rec.id, {
           status: "awaiting_input",
+          // Only Career Agent's own messages are stored and shown; system errors can carry paths or URLs.
           handoffReason:
-            err instanceof Error && "code" in err
-              ? err.message
-              : "Preparation stopped unexpectedly.",
+            err instanceof CareerAgentError ? err.message : "Preparation stopped unexpectedly.",
         });
       this.d.store.tasks.fail(task.id, this.d.workerId, {
         retry: false,

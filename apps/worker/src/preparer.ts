@@ -5,10 +5,10 @@ import {
   MODEL_TOOLS,
   prepareForm,
   snapshotHash,
+  submitControlIdentity,
   type AtsAdapter,
   type PreparationReport,
 } from "@career-agent/browser";
-import { submitControlIdentity } from "@career-agent/browser/submission";
 import {
   FORM_PREPARATION_PROMPT,
   FormPreparationOutput,
@@ -30,6 +30,7 @@ import {
   type RunLimits,
 } from "@career-agent/domain";
 import type { Logger } from "@career-agent/observability";
+import { redactString } from "@career-agent/security";
 
 export interface PreparerOptions {
   store: Store;
@@ -42,8 +43,10 @@ export interface PreparerOptions {
   profileRoot?: string;
   maxSteps: number;
   sessionTimeoutMs: number;
-  /** Tests only: allows the local fixture server. Never configurable at runtime. */
+  /** Local fixture forms: tests, and the fictional demo (DEMO_MODE), which also sets `localFormsOnly`. */
   allowPrivateNetwork?: boolean;
+  /** Demo: refuse every form that is not on this machine (127.0.0.1, localhost, *.localhost). */
+  localFormsOnly?: boolean;
   /** Phase 9 (BROWSER_MODEL_ASSIST): the OpenAI orchestrator continues forms the rule-based pass could not finish. */
   assist?: ModelAssist | null;
 }
@@ -134,7 +137,11 @@ export class BrowserPreparer {
     if (status === "ready") await this.review(applicationId);
     const rec = this.o.store.browserSessions.update(live.recordId, {
       status,
-      handoffReason: [message, ...report.checklist].join("\n").slice(0, 2000),
+      // Checklist items carry field labels and short error texts from the page: capped and redacted.
+      handoffReason: [message, ...report.checklist.slice(0, 20).map((c) => c.slice(0, 300))]
+        .map((l) => redactString(l))
+        .join("\n")
+        .slice(0, 2000),
       steps: live.toolbox.log.length,
       lastUrl: report.url || null,
     });
@@ -252,7 +259,12 @@ export class BrowserPreparer {
           ? els.some((e) => e.checked && e.label.trim().toLowerCase() === wanted)
           : f.type === "checkbox"
             ? els.some((e) => e.checked === /^(yes|true|checked|on|1|y)$/i.test(wanted))
-            : els.some((e) => e.value.trim().toLowerCase().startsWith(wanted));
+            : // Type-ahead fields may show the chosen suggestion ("Berlin, Germany" for "Berlin"); others must match.
+              els.some((e) =>
+                e.role === "combobox"
+                  ? e.value.trim().toLowerCase().startsWith(wanted)
+                  : e.value.trim().toLowerCase() === wanted,
+              );
       if (!shows) checklist.push(`Changed on the page: "${f.label}" no longer shows your answer.`);
     }
     const control = live.adapter.submitControl(s);
@@ -295,6 +307,11 @@ export class BrowserPreparer {
     const url = new URL(job.applyUrl ?? job.sourceUrl);
     if (url.protocol !== "https:" && !this.o.allowPrivateNetwork)
       throw new PolicyError("Only https application pages can be opened.");
+    if (
+      this.o.localFormsOnly &&
+      !/^(127\.0\.0\.1|localhost|[a-z0-9-]+\.localhost)$/.test(url.hostname)
+    )
+      throw new PolicyError("Demo mode only opens the fictional forms on this machine.");
     const probe = adapterFor(url.href);
     const session = await BrowserSession.open({
       policy: {
@@ -313,7 +330,8 @@ export class BrowserPreparer {
     } catch (err) {
       await session.close();
       throw new PolicyError(
-        `The application page could not be opened (${err instanceof Error ? err.message.split("\n")[0]?.slice(0, 120) : "error"}).`,
+        // Error names only: browser messages can contain the full URL, including tokens in its query.
+        `The application page could not be opened (${err instanceof Error ? err.name : "error"}). Check the job link and your connection.`,
       );
     }
     const marker =

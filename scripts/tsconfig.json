@@ -6,5 +6,11 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo",
     "noEmit": false
   },
-  "include": ["__tests__/**/*.ts", "../vitest.config.ts", "../vitest.browser.config.ts"]
+  "include": [
+    "__tests__/**/*.ts",
+    "../vitest.config.ts",
+    "../vitest.browser.config.ts",
+    "../e2e/**/*.ts",
+    "demo.d.mts"
+  ]
 }

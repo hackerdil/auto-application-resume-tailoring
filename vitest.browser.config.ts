@@ -18,7 +18,11 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ["packages/*/src/**/*.browser.test.ts", "apps/*/src/**/*.browser.test.ts"],
+    include: [
+      "packages/*/src/**/*.browser.test.ts",
+      "apps/*/src/**/*.browser.test.ts",
+      "e2e/**/*.browser.test.ts",
+    ],
     environment: "node",
     testTimeout: 60_000,
     hookTimeout: 60_000,

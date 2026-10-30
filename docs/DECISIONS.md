@@ -251,3 +251,47 @@ Each entry: context → decision → consequences. Status is `accepted` unless s
   - **Bounds:** every tool call, model turn, and cost is charged to one `RunBudget`. Tool errors reach the model only as short refusal messages.
   - **Form preparation:** under `BROWSER_MODEL_ASSIST=true`, the worker runs one orchestrated pass with the 12 answer-bound browser tools, and only when the rule-based pass stopped or a tool refused something. A fresh rule-based pass then decides the outcome. The model's own "ready" is never trusted.
 - **Consequences:** a model can only do what the toolbox already allows (ADR-031). It cannot submit, type free text, or reach the submission subpath. Default preparation stays free and deterministic.
+
+## ADR-037 — Fictional demo mode
+
+- **Date:** 2026-10-30
+- **Decision:** `pnpm demo` (`scripts/demo.mjs`) builds a clean environment from scratch (never the owner's `.env`) for a separate database under `data/demo/`, with generated demo-only keys. It seeds fictional facts, profile, and jobs whose apply URLs point at the fictional fixture forms served on `ats.localhost`, then starts the API, worker, and web app.
+  - `DEMO_MODE=true` is valid only with `OPERATING_MODE=dry-run` (config error otherwise), so approvals and submissions are impossible.
+  - `DEMO_MODE` also disables both AI providers whatever else is set.
+  - It lets the worker browser reach private-network hosts but only opens forms on `127.0.0.1`/`localhost`/`*.localhost`.
+- **Consequences:** the demo is safe to run anywhere and doubles as the end-to-end test environment (ADR-038). It uses the default ports, because the web app's API proxy is fixed at build time.
+
+## ADR-038 — End-to-end and accessibility tests in the browser suite
+
+- **Date:** 2026-10-30
+- **Decision:** `e2e/demo.browser.test.ts` runs in `pnpm test:browser`. It starts the demo (headless worker), drives the real web UI with Playwright from a fictional job to a filled form ready for review, and confirms that approval stays disabled. `@axe-core/playwright` 4.14.0 checks every main page and each workflow state against WCAG 2.1 A/AA; any serious or critical violation fails the test. Playwright 1.64.1 and axe are root dev dependencies.
+- **Consequences:** the suite needs `pnpm build` first and free demo ports; CI runs it after the build. Moderate and minor axe findings are not gated.
+
+## ADR-039 — Phase 10 security review fixes
+
+- **Date:** 2026-10-30
+- **Context:** the project `security-reviewer` subagent reviewed Phases 7–9. It found no submission path without a consumed, bound approval, but reported weaknesses at the edges.
+- **Decision:**
+  1. `click_safe_control` no longer clicks listbox options (they are chosen only through answer-bound tools), and submit wording now wins over the option and link roles.
+  2. WebSockets are refused with `routeWebSocket`, and WebRTC is removed from pages.
+  3. `SUBMITTED` now needs a write actually sent, a changed page, and confirmation text that was not already on the form.
+  4. `rejected_before_send` needs zero writes and zero main-frame navigations. GET-form submit buttons are refused while preparing.
+  5. A worker restart moves an interrupted `SUBMITTING` to `SUBMISSION_UNCERTAIN`, and any failure after the click ends there.
+  6. Every failure before the consume revokes the approval, and approve and queue happen in one transaction.
+  7. The form hash binds full values, a keyed digest of secret fields, and the form action and method. The review check compares exact values (type-ahead excepted).
+  8. Model views carry the origin and path only, never query strings.
+  9. More labels count as secret (token, API key, PIN, recovery code, passport, licence number, tax id).
+- **Consequences:** more outcomes become "uncertain" rather than "submitted"; that is the intended direction.
+
+## ADR-040 — Second security review: provider budgets, error text, lint boundary, idempotency
+
+- **Date:** 2026-10-30
+- **Context:** a second `security-reviewer` pass covered the areas the first one did not reach: providers and orchestrator, the local API guard and idempotency, worker-written data, and the import boundary. It found no high-severity issue.
+- **Decision:**
+  1. The ADR-007 lint restriction now also covers the worker's model-tool wiring (`apps/worker/src/preparer.ts`) and the browser modules the toolbox builds on (`adapters/**`, `controls`, `snapshot`, `session`, `collector`). `submitControlIdentity` moved to the main browser entry so the preparer needs nothing from the submission subpath. `policy.ts` remains the one browser module that creates (closed) write gates.
+  2. `budgeted()` passes each call `RunBudget.remaining()`, so Claude's `maxBudgetUsd` and the turn limit are what is left of the run rather than the full cap. Failed budgeted calls report through `onError`; failed orchestrator runs now write a `provider_runs` row.
+  3. Tool output returned to the model is redacted, and tool errors reach the model only as fixed text per error class (also through SDK-wrapped causes).
+  4. Hand-off text stores only Career Agent's own error messages (never system or browser error text, which can include paths or URLs with tokens); checklist lines are capped and redacted.
+  5. A concurrent duplicate Idempotency-Key gets 409 while the first request is still running (in-process guard; the API is a single local process).
+  6. Accepted: `GET /api/v1/ready` stays unauthenticated (mode, demo flag, provider status) because only loopback peers with an allowed Host reach it.
+- **Consequences:** no behavior change for normal use; tighter bounds on spend and on what text reaches models, logs, and the database.
