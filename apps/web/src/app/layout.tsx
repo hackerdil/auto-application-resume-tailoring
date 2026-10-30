@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/sources">Sources</Link>
             <Link href="/facts">Fact bank</Link>
             <Link href="/profile">Profile &amp; preferences</Link>
+            <Link href="/usage">AI &amp; usage</Link>
             <a href="/api/v1/export" download>
               Export my data
             </a>

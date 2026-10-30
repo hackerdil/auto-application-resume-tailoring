@@ -119,9 +119,19 @@ Review UI; binding hashes; token issue/consume/revoke; SubmissionService; confir
   - `OPERATING_MODE` setting (default `review-each`); other modes cannot issue approvals or submit.
 - **Not done / deferred:** The approve endpoint's success path is tested through the same builder in the worker browser tests, not through HTTP. The review UI has not been checked in the running app. Confirmation predicates are text-based and only verified against fixtures. Forms that send their submission to another origin, or as several requests to the same endpoint, end as `SUBMISSION_UNCERTAIN`.
 
-## Phase 9 — Hybrid orchestration ☐
+## Phase 9 — Hybrid orchestration ☑
 
 OpenAI Agents SDK orchestrator; Claude Agent SDK provider (ADR-008 options re-verified); `delegate_to_claude`; router with bounded retry/fallback; provider health; usage/cost UI. Live smoke tests only with explicit owner authorization.
+
+- **Done (2026-10-30):** 475 unit and integration tests and 21 browser tests green; build green; the new AI & usage page checked in the running app (API and web only, so no provider was called). No paid or live model call was made: tests drive the real Agents SDK loop through its `Model` interface with scripted responses, and the Claude SDK through an injected `query` function.
+  - SDKs (pinned): `@openai/agents-core` / `@openai/agents-openai` 0.21.0, `@anthropic-ai/claude-agent-sdk` 0.3.312 (ADR-008/009 option names re-checked against the installed `.d.ts`).
+  - `OpenAIAgentsProvider`: structured output through an `Agent` with a JSON-schema output type; tracing export disabled; model id only from `OPENAI_MODEL`; usage from the run context; cost from optional `OPENAI_INPUT/OUTPUT_USD_PER_MTOK`; SDK and HTTP errors mapped to provider errors.
+  - `ClaudeAgentProvider`: ADR-008 lockdown (`tools: []`, `permissionMode: "dontAsk"`, `settingSources: []`, `persistSession: false`, no MCP servers, own `systemPrompt`, minimal env without secrets, bounded turns and budget); reads `structured_output`; maps sign-in, plan-limit, turn, and budget failures.
+  - `ProviderRouter` (ADR-035): modes, per-provider retries (rate limit, timeout, unavailable) with capped jittered backoff, fallback without cycles, no fallback for refusals or invalid output or in single-provider modes, circuit breaker, health report, and a `provider_runs` row for every failed attempt.
+  - `orchestrate` (ADR-036): OpenAI agent with only the tools passed in plus `delegate_to_claude` (capped by `MAX_CLAUDE_DELEGATIONS_PER_RUN`), all under one run budget; prompts `form-preparation` v1 and `delegation` v1.
+  - Wiring: worker uses the router for match analysis, résumé generation, the integrity reviewer (Claude first in hybrid), and drafting; the API uses it for answer drafting and résumé fact extraction (recorded in `provider_runs`). Opt-in `BROWSER_MODEL_ASSIST` runs one orchestrated pass with the 12 answer-bound browser tools when the rule-based pass stops; a fresh rule-based pass then decides the outcome.
+  - API `GET /api/v1/system/providers` and `/system/usage`; UI "AI & usage" page.
+- **Not done / deferred:** "compare" mode routes like "hybrid" (no side-by-side runs yet). No live smoke test was run (needs your explicit authorization, `ENABLE_LIVE_AI_TESTS=true`, an API key, and a Claude Code login). Claude sign-in is checked on first use, not by the health report. Model-assisted preparation has been tested with scripted models only, never against a real form or model. Per-day usage history and a monthly budget cap are not built.
 
 ## Phase 10 — Hardening and release ☐
 

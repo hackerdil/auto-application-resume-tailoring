@@ -18,6 +18,7 @@ import {
 import { createDiscoveryPorts } from "@career-agent/sources";
 import { newTraceId, type Logger } from "@career-agent/observability";
 import { ApprovalService, approvalKey } from "@career-agent/security";
+import { createApplicationDrafter, type ProviderRouter } from "@career-agent/ai";
 import { errorBody, statusFor } from "./http-errors.js";
 import { LocalGuard } from "./local-guard.js";
 import { registerFactRoutes } from "./routes/facts.js";
@@ -45,6 +46,8 @@ export interface AppDeps {
   discoveryPorts?: DiscoveryPorts;
   sessionSecret: Buffer;
   logger: Logger;
+  /** Phase 9 providers behind the router; absent in tests and when none is configured. */
+  ai?: { router: ProviderRouter; secretValues: readonly string[] } | null;
   maxUploadBytes?: number;
   now?: () => number;
 }
@@ -151,7 +154,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     enableWorkable: env.ENABLE_WORKABLE,
   });
 
-  // Provider-backed analysis arrives with the provider implementations (Phase 9); scoring here is deterministic.
+  // Scoring with a model runs in the worker; the API only reads matches and staleness.
   const matching = new MatchingService({
     jobs: deps.store.jobs,
     facts: deps.store.facts,
@@ -193,13 +196,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     audit: deps.store.audit,
     renderer: createCoverLetterRenderer(),
     artifacts: createArtifactWriter(files, deps.store.artifacts),
-    drafter: null,
+    drafter: deps.ai?.router.available ? createApplicationDrafter(deps.ai.router) : null,
     approvals: deps.store.approvals,
     uow: (fn) => deps.store.transaction(fn),
   });
 
   const shared = { guard, store: deps.store, ownerId: deps.ownerId };
-  registerSystemRoutes(app, { ...shared, config: deps.config });
+  registerSystemRoutes(app, { ...shared, config: deps.config, router: deps.ai?.router ?? null });
   registerProfileRoutes(app, { ...shared, profiles });
   registerFactRoutes(app, { ...shared, factBank });
   registerJobRoutes(app, { ...shared, discovery, matching });

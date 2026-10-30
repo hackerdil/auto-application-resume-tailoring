@@ -77,6 +77,10 @@
 
 Nothing is sent to an employer without your approval of that specific application.
 
+## AI providers and usage
+
+**AI & usage** shows which AI services are set up and whether they are working, and what calls have cost over the last day, week, month, or year. Calls without a known price are counted separately; Claude's figure is an estimate that counts against your plan's limits. Everything in Career Agent still works without AI: suggestions are then rule-based, and you write your own reasons for applying.
+
 ## Your data
 
 Use **Export my data** for a full copy. To erase everything locally, run `pnpm data:delete --confirm "DELETE MY DATA"`.

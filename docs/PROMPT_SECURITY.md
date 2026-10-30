@@ -19,3 +19,8 @@ Rules every prompt and provider call follows. Enforced in `packages/ai` code whe
 7. **Model output is a proposal.** Tool calls are validated against schemas and policy before execution; claims are validated against the fact bank; no model output can change approval state.
 8. **Logging.** Full prompts/outputs are stored only when `STORE_FULL_PROMPTS` / `STORE_FULL_MODEL_OUTPUTS` are true, and then redacted.
 9. **Regression fixtures** in `fixtures/ai/` cover injection in job descriptions, hallucinated claims, invalid JSON, and provider disagreement.
+
+## Prompts added in Phase 9
+
+- `form-preparation` v1: the orchestrator's instructions for model-assisted preparation. The page snapshot goes in the untrusted envelope; answers are listed by field id and question only, never by value.
+- `delegation` v1: Claude's second-opinion prompt. Both the orchestrator's question and its context are treated as untrusted (they may echo page text), and the answer is returned to the orchestrator as advice.

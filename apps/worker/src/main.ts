@@ -1,6 +1,14 @@
 import path from "node:path";
 import { hostname } from "node:os";
-import { ConfigError } from "@career-agent/config";
+import {
+  createAIProviders,
+  createApplicationDrafter,
+  createIntegrityReviewer,
+  createMatchAnalyzer,
+  createResumeGenerator,
+  failureRecorder,
+} from "@career-agent/ai";
+import { ConfigError, providerSettings } from "@career-agent/config";
 import { bootstrap } from "@career-agent/db";
 import {
   ApplicationService,
@@ -27,6 +35,12 @@ try {
     level: config.env.LOG_LEVEL,
     base: { app: "career-agent-worker" },
   });
+  // Phase 9: OpenAI orchestrator + Claude reviewer behind the router; every path still works without them.
+  const settings = providerSettings(config);
+  const ai = createAIProviders({ ...settings, onFailure: failureRecorder(store.providerRuns) });
+  const model = ai.router.available ? ai.router : null;
+  if (!model)
+    logger.warn("No AI provider is configured; scoring, tailoring, and drafting stay rule-based.");
   if (config.env.DISCOVERY_SCHEDULE_ENABLED)
     logger.warn("Scheduled discovery is not implemented yet; run discovery from the Sources page.");
   const discovery = new DiscoveryService({
@@ -39,7 +53,6 @@ try {
     freshnessDays: config.env.JOB_FRESHNESS_DAYS,
     enableWorkable: config.env.ENABLE_WORKABLE,
   });
-  // Provider-backed analysis arrives with the provider implementations (Phase 9); until then scoring is deterministic.
   const matching = new MatchingService({
     jobs: store.jobs,
     facts: store.facts,
@@ -50,9 +63,8 @@ try {
     providerRuns: store.providerRuns,
     audit: store.audit,
     strongThreshold: config.env.MATCH_SCORE_THRESHOLD,
-    analyzer: null,
+    analyzer: model ? createMatchAnalyzer(model, { secretValues: settings.secretValues }) : null,
   });
-  // Generator and reviewer arrive with the provider implementations (Phase 9); until then résumés use facts verbatim.
   const tailoring = new TailoringService({
     jobs: store.jobs,
     facts: store.facts,
@@ -63,10 +75,9 @@ try {
     audit: store.audit,
     renderer: createResumeRenderer(),
     artifacts: createArtifactWriter(new FileArtifactStore(artifactDir), store.artifacts),
-    generator: null,
-    reviewer: null,
+    generator: model ? createResumeGenerator(model) : null,
+    reviewer: model ? createIntegrityReviewer(model) : null,
   });
-  // Drafting with a model arrives with the provider implementations (Phase 9).
   const applications = new ApplicationService({
     applications: store.applications,
     fields: store.applicationFields,
@@ -80,7 +91,7 @@ try {
     audit: store.audit,
     renderer: createCoverLetterRenderer(),
     artifacts: createArtifactWriter(new FileArtifactStore(artifactDir), store.artifacts),
-    drafter: null,
+    drafter: model ? createApplicationDrafter(model) : null,
     approvals: store.approvals,
     uow: (fn) => store.transaction(fn),
   });
@@ -94,7 +105,28 @@ try {
     profileRoot: path.resolve(config.env.BROWSER_PROFILE_DIR),
     maxSteps: config.env.BROWSER_MAX_STEPS,
     sessionTimeoutMs: config.env.BROWSER_TIMEOUT_MS,
+    assist:
+      config.env.BROWSER_MODEL_ASSIST && ai.openai
+        ? {
+            openai: ai.openai,
+            claude: ai.claude,
+            maxDelegations: config.env.MAX_CLAUDE_DELEGATIONS_PER_RUN,
+            limits: {
+              deadlineMs: 300_000,
+              maxModelTurns: config.env.OPENAI_MAX_TURNS,
+              maxToolCalls: config.env.BROWSER_MAX_STEPS,
+              maxBrowserSteps: config.env.BROWSER_MAX_STEPS,
+              maxRetries: config.env.MAX_PROVIDER_RETRIES,
+              maxInputChars: 60_000,
+              maxOutputTokens: 4_000,
+              maxCostUsd: config.env.OPENAI_MAX_COST_USD_PER_RUN,
+            },
+            secretValues: settings.secretValues,
+          }
+        : null,
   });
+  if (config.env.BROWSER_MODEL_ASSIST && !ai.openai)
+    logger.warn("BROWSER_MODEL_ASSIST needs OpenAI; preparation stays rule-based.");
   // Phase 8: submission needs LOCAL_SESSION_SECRET (approval MACs) and review-each mode.
   const sessionSecret = config.env.LOCAL_SESSION_SECRET
     ? Buffer.from(config.env.LOCAL_SESSION_SECRET, "base64")

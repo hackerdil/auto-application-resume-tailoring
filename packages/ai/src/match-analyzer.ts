@@ -35,6 +35,50 @@ export function budgeted(
   };
 }
 
+/** The provider_runs row for one call (usage and cost only; never prompt or output text). */
+export function runRecord(
+  res: ProviderResult,
+  req: ProviderRequest,
+  agentRunId: string | null = null,
+): ProviderRunRecord {
+  return {
+    traceId: req.traceId,
+    agentRunId,
+    provider: res.meta.provider,
+    model: res.meta.model,
+    taskType: req.taskType,
+    promptId: req.promptId,
+    promptVersion: req.promptVersion,
+    requestId: res.meta.requestId,
+    durationMs: res.meta.durationMs,
+    inputTokens: res.meta.usage.inputTokens,
+    cachedInputTokens: res.meta.usage.cachedInputTokens,
+    reasoningTokens: res.meta.usage.reasoningTokens,
+    outputTokens: res.meta.usage.outputTokens,
+    costUsd: res.meta.costUsd,
+    toolCalls: res.meta.toolCalls,
+    delegated: res.meta.delegated,
+    fallback: res.meta.fallback,
+    errorClass: null,
+  };
+}
+
+/** Records every successful call without a run budget (callers that bound work by other means, e.g. extraction). */
+export function recorded(
+  provider: AIProvider,
+  onRecord: (r: ProviderRunRecord) => void,
+): AIProvider {
+  return {
+    name: provider.name,
+    health: () => provider.health(),
+    run: async (req) => {
+      const res = await provider.run(req);
+      onRecord(runRecord(res, req));
+      return res;
+    },
+  };
+}
+
 export interface MatchAnalyzerOptions {
   maxFacts?: number;
   /** Exact secret values that must never appear in prompts. */

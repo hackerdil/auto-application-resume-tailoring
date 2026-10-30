@@ -52,12 +52,19 @@ Each entry: context → decision → consequences. Status is `accepted` unless s
 - **Context:** Verified in `@anthropic-ai/claude-agent-sdk@0.3.312` types: `query({prompt, options})`; options include `tools`, `allowedTools`, `disallowedTools`, `permissionMode` (`'default'|'acceptEdits'|'bypassPermissions'|'plan'|'dontAsk'|'auto'`), `maxTurns`, `maxBudgetUsd`, `cwd`, `settingSources` (`'user'|'project'|'local'`), `outputFormat` (`json_schema`), `abortController`, `env` (which **replaces** the subprocess environment entirely).
 - **Decision:** `tools: []` (no built-in tools; review is pure reasoning over supplied JSON), `permissionMode: 'dontAsk'`, `disallowedTools: ['Bash','Write','Edit','NotebookEdit','WebFetch','WebSearch']` as defence in depth, `settingSources: []`, `cwd: CLAUDE_WORKING_DIRECTORY` (empty dedicated dir), `maxTurns`, `maxBudgetUsd`, `outputFormat` JSON schema derived from Zod, and an explicit minimal `env` (PATH, HOME, locale) that excludes `OPENAI_API_KEY`, `DATA_ENCRYPTION_KEY`, `LOCAL_SESSION_SECRET`. Never `bypassPermissions`.
 - **Consequences:** Claude cannot read files, run commands, or see other credentials. Exact option names are re-verified against installed types in Phase 9.
+- **Evidence (Phase 9, `0.3.312` installed):** all options above exist with these names. Also used: `persistSession: false` (no session files), `strictMcpConfig: true` with `mcpServers: {}`, and `systemPrompt` as a plain string, which replaces the Claude Code preset. Results come from `SDKResultMessage`: `structured_output`, `total_cost_usd` (an estimate), `modelUsage`, and `api_error_status`. Sign-in problems arrive as `auth_status` messages with `error`. `0.3.314` (published the same day) was not adopted.
 
 ## ADR-009 — OpenAI Agents SDK as orchestrator
 
 - **Context:** Verified `@openai/agents@0.21.0` exists; `@openai/agents-core` exposes function tools with `needsApproval` and `Runner` `maxTurns`.
 - **Decision:** Use function tools wrapping our restricted browser surface and `delegate_to_claude`. Model id comes only from `OPENAI_MODEL`. If OpenAI is enabled but `OPENAI_API_KEY` or `OPENAI_MODEL` is empty, config marks OpenAI _unavailable_ with an actionable reason (local/read-only features still start, per spec §30); the provider factory refuses to run it. `needsApproval` is used for `ask_user`/auth handoff flows, never as the submission control (submission is not a tool at all, ADR-007).
-- **Consequences:** OpenAI-specific code is isolated in `packages/ai/src/providers/openai/`.
+- **Consequences:** OpenAI-specific code is isolated in `packages/ai/src/providers/openai.ts`.
+- **Evidence (Phase 9, `@openai/agents-core`/`@openai/agents-openai` 0.21.0 installed; the `@openai/agents` umbrella was not used, to avoid the realtime package):**
+  - `new Runner({ modelProvider, tracingDisabled, traceIncludeSensitiveData })` and `runner.run(agent, input, { maxTurns, signal })`.
+  - `Agent` takes `outputType` as `{ type: "json_schema", name, strict, schema }`; `RunResult` exposes `finalOutput`, `runContext.usage`, `lastResponseId`, and `newItems`.
+  - `tool({ name, description, parameters, strict: false, execute, errorFunction })`.
+  - `OpenAIProvider({ apiKey })`.
+  - Tracing export is disabled because prompts contain the owner's facts.
 
 ## ADR-010 — Job sources: public ATS APIs only in MVP
 
@@ -153,7 +160,7 @@ Each entry: context → decision → consequences. Status is `accepted` unless s
 
 - **Date:** 2026-10-29
 - **Decision:** Every model call goes through `budgeted(provider, RunBudget)`, which charges a turn, checks the rendered input size, adds the reported cost, and aborts on any limit (default per job: 2 turns, 40k chars, 120 s, $0.25). Scoring tasks per discovery run are capped by `MAX_JOBS_SCORED_PER_RUN`. When the budget or provider fails, the job is still scored deterministically and `meta.modelSkippedReason` says why. Every call is recorded in `provider_runs` (usage, cost, prompt id/version, trace id).
-- **Consequences:** A runaway prompt or provider can at most cost one job's budget. Providers that report no cost are bounded by turns and input size until pricing is configured (Phase 9).
+- **Consequences:** A runaway prompt or provider can at most cost one job's budget. Providers that report no cost are bounded by turns and input size. Phase 9: OpenAI costs are computed only when `OPENAI_INPUT_USD_PER_MTOK`/`OPENAI_OUTPUT_USD_PER_MTOK` are set (no built-in price list that could go stale). Claude reports the SDK's estimate.
 
 ## ADR-026 — Résumé tailoring: strict no-drift validator, revise once, then drop
 
@@ -224,3 +231,23 @@ Each entry: context → decision → consequences. Status is `accepted` unless s
   - **Token in transit:** the task carries the token sealed with a key derived from `LOCAL_SESSION_SECRET` and bound to the approval id. The database keeps only its hash.
   - **Outcomes:** confirmation text → `SUBMITTED`. A same-page validation error with zero writes sent → back to `READY_FOR_REVIEW` (new guarded edge; nothing reached the employer). Anything else → `SUBMISSION_UNCERTAIN`, which only the owner resolves. Nothing is retried.
 - **Consequences:** Approving requires a fresh look at the live form. A worker restart revokes any outstanding approval.
+
+## ADR-035 — Provider router: modes, bounded retry, no-cycle fallback, circuit breaker
+
+- **Date:** 2026-10-30
+- **Decision:** `ProviderRouter` implements `AIProvider`, so every existing caller (analyzer, generator, reviewer, drafter, extraction) uses it unchanged.
+  - **Modes:** `openai` / `claude` use only that provider and never fall back. `hybrid` sends `integrity_review` to Claude first (an independent reviewer) and everything else to OpenAI first. `auto` tries healthy providers first. `compare` routes like `hybrid` for now.
+  - **Retries:** only rate-limit, timeout, and unavailable errors are retried, at most `min(MAX_PROVIDER_RETRIES, limits.maxRetries)` times, with exponential backoff (×0.5–1 jitter, capped at 30 s).
+  - **Fallback:** each provider is tried at most once per call. Refusals and invalid output do not fall back, because they are about the request, not the provider.
+  - **Circuit breaker:** three consecutive failures pause a provider for 60 s (shown on the usage page).
+  - **Records:** every failed attempt writes a `provider_runs` row with its error code; successful calls are recorded by their callers.
+- **Consequences:** a provider outage degrades to the other provider or to the rule-based paths that already exist everywhere. Fallback is visible per call (`fallback`) and on the usage page.
+
+## ADR-036 — OpenAI orchestrator with delegate_to_claude; model assist is opt-in and never decides
+
+- **Date:** 2026-10-30
+- **Decision:** `orchestrate()` runs an Agents SDK agent whose only tools are the ones its caller passes, plus `delegate_to_claude`.
+  - **Delegation:** a locked-down Claude call returning `{answer, concerns}` as advice, capped by `MAX_CLAUDE_DELEGATIONS_PER_RUN`.
+  - **Bounds:** every tool call, model turn, and cost is charged to one `RunBudget`. Tool errors reach the model only as short refusal messages.
+  - **Form preparation:** under `BROWSER_MODEL_ASSIST=true`, the worker runs one orchestrated pass with the 12 answer-bound browser tools, and only when the rule-based pass stopped or a tool refused something. A fresh rule-based pass then decides the outcome. The model's own "ready" is never trusted.
+- **Consequences:** a model can only do what the toolbox already allows (ADR-031). It cannot submit, type free text, or reach the submission subpath. Default preparation stays free and deterministic.

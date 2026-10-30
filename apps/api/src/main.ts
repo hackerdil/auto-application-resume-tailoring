@@ -1,4 +1,5 @@
-import { ConfigError, requireSetting } from "@career-agent/config";
+import { createAIProviders, failureRecorder, recorded } from "@career-agent/ai";
+import { ConfigError, providerSettings, requireSetting } from "@career-agent/config";
 import { createLogger } from "@career-agent/observability";
 import { buildApp } from "./app.js";
 import { bootstrap } from "@career-agent/db";
@@ -16,12 +17,20 @@ try {
     ].filter((v): v is string => !!v),
   });
   for (const w of config.warnings) logger.warn(w);
-  // Provider-backed extraction arrives with the provider implementations (Phase 9); until then extraction is rule-based.
+  const settings = providerSettings(config);
+  const ai = createAIProviders({ ...settings, onFailure: failureRecorder(store.providerRuns) });
+  // Model extraction adds candidates only when their evidence is verbatim in the résumé (ADR in Phase 2).
+  const extractor = ai.router.available
+    ? recorded(ai.router, (r) => {
+        store.providerRuns.record(r);
+      })
+    : null;
   const app = await buildApp({
     config,
     store,
     ownerId,
-    documents: documentPorts(artifactDir),
+    documents: documentPorts(artifactDir, extractor),
+    ai: { router: ai.router, secretValues: settings.secretValues },
     artifactDir,
     sessionSecret,
     logger,

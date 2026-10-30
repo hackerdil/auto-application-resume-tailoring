@@ -7,6 +7,7 @@ import {
   type MatchRepository,
   type ProviderRunRecord,
   type ProviderRunRepository,
+  type ProviderUsageRow,
   type RequirementKind,
 } from "@career-agent/domain";
 import type { Db } from "../database.js";
@@ -141,5 +142,27 @@ export class SqliteProviderRunRepository implements ProviderRunRepository {
       .where(and(gte(providerRuns.createdAt, fromIso(sinceIso))))
       .get();
     return row?.total ?? 0;
+  }
+
+  usageSince(sinceIso: string): ProviderUsageRow[] {
+    const ok = sql`${providerRuns.errorClass} IS NULL`;
+    return this.db
+      .select({
+        provider: providerRuns.provider,
+        taskType: providerRuns.taskType,
+        calls: sql<number>`count(*)`,
+        errors: sql<number>`sum(CASE WHEN ${providerRuns.errorClass} IS NOT NULL THEN 1 ELSE 0 END)`,
+        fallbacks: sql<number>`sum(CASE WHEN ${providerRuns.fallback} THEN 1 ELSE 0 END)`,
+        delegated: sql<number>`sum(CASE WHEN ${providerRuns.delegated} THEN 1 ELSE 0 END)`,
+        inputTokens: sql<number>`coalesce(sum(${providerRuns.inputTokens}), 0)`,
+        outputTokens: sql<number>`coalesce(sum(${providerRuns.outputTokens}), 0)`,
+        costUsd: sql<number>`coalesce(sum(${providerRuns.costUsd}), 0)`,
+        unpricedCalls: sql<number>`sum(CASE WHEN ${ok} AND ${providerRuns.costUsd} IS NULL THEN 1 ELSE 0 END)`,
+      })
+      .from(providerRuns)
+      .where(gte(providerRuns.createdAt, fromIso(sinceIso)))
+      .groupBy(providerRuns.provider, providerRuns.taskType)
+      .orderBy(providerRuns.provider, providerRuns.taskType)
+      .all();
   }
 }

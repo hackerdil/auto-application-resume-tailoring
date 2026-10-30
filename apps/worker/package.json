@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@career-agent/ai": "workspace:*",
     "@career-agent/browser": "workspace:*",
     "@career-agent/config": "workspace:*",
     "@career-agent/db": "workspace:*",
@@ -14,7 +15,6 @@
     "@career-agent/sources": "workspace:*"
   },
   "devDependencies": {
-    "@career-agent/ai": "workspace:*",
     "@career-agent/testkit": "workspace:*"
   },
   "scripts": {

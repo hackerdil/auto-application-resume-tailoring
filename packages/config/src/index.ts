@@ -26,6 +26,13 @@ const money = (def: number) =>
     .transform((v) => (v === undefined || v.trim() === "" ? String(def) : v))
     .pipe(z.coerce.number<string>().min(0).max(100));
 
+/** Empty = not set (cost unknown); otherwise a non-negative USD price. */
+const optionalPrice = z
+  .string()
+  .optional()
+  .transform((v) => (v === undefined || v.trim() === "" ? undefined : Number(v)))
+  .pipe(z.number().nonnegative().max(1000).optional());
+
 const LOOPBACK = new Set(["127.0.0.1", "::1", "localhost"]);
 
 const base64Key = (name: string, minBytes: number) =>
@@ -66,6 +73,9 @@ const EnvSchema = z.object({
   OPENAI_MODEL: optionalString,
   OPENAI_MAX_TURNS: int(8, 1, 50),
   OPENAI_MAX_COST_USD_PER_RUN: money(1),
+  /** Optional token prices for cost accounting (USD per million tokens); unset = cost unknown (ADR-025). */
+  OPENAI_INPUT_USD_PER_MTOK: optionalPrice,
+  OPENAI_OUTPUT_USD_PER_MTOK: optionalPrice,
 
   CLAUDE_ENABLED: bool(true),
   CLAUDE_MODE: z.enum(["subscription"]).default("subscription"),
@@ -91,6 +101,8 @@ const EnvSchema = z.object({
   BROWSER_HEADLESS: bool(false),
   BROWSER_MAX_STEPS: int(40, 1, 500),
   BROWSER_TIMEOUT_MS: int(600_000, 10_000, 3_600_000),
+  /** Phase 9: let the OpenAI orchestrator continue a form the deterministic pass could not finish. */
+  BROWSER_MODEL_ASSIST: bool(false),
   APPROVAL_TTL_SECONDS: int(300, 30, 900),
   /** research-only · prepare · review-each (one approval per application) · dry-run. Submission needs review-each. */
   OPERATING_MODE: z
@@ -184,3 +196,39 @@ export function requireSetting<K extends keyof Env>(
 }
 
 export const ENV_KEYS: readonly string[] = Object.keys(EnvSchema.shape);
+
+/** Provider settings for createAIProviders (packages/ai), plus the exact secret values prompts must never contain. */
+export function providerSettings(config: AppConfig) {
+  const e = config.env;
+  const o = config.providers.openai;
+  return {
+    mode: e.DEFAULT_PROVIDER_MODE,
+    timeoutMs: e.PROVIDER_TIMEOUT_MS,
+    maxRetries: e.MAX_PROVIDER_RETRIES,
+    openai: {
+      enabled: o.enabled,
+      ready: o.enabled && o.ready,
+      ...(o.enabled && !o.ready ? { reason: o.reason } : {}),
+      apiKey: e.OPENAI_API_KEY,
+      model: e.OPENAI_MODEL,
+      maxTurns: e.OPENAI_MAX_TURNS,
+      pricing:
+        e.OPENAI_INPUT_USD_PER_MTOK !== undefined && e.OPENAI_OUTPUT_USD_PER_MTOK !== undefined
+          ? {
+              inputPerMTok: e.OPENAI_INPUT_USD_PER_MTOK,
+              outputPerMTok: e.OPENAI_OUTPUT_USD_PER_MTOK,
+            }
+          : null,
+    },
+    claude: {
+      enabled: e.CLAUDE_ENABLED,
+      model: e.CLAUDE_MODEL,
+      workingDirectory: e.CLAUDE_WORKING_DIRECTORY,
+      maxTurns: e.CLAUDE_MAX_TURNS,
+      maxBudgetUsd: e.CLAUDE_MAX_COST_USD_PER_RUN,
+    },
+    secretValues: [e.OPENAI_API_KEY, e.DATA_ENCRYPTION_KEY, e.LOCAL_SESSION_SECRET].filter(
+      (v): v is string => !!v,
+    ),
+  };
+}

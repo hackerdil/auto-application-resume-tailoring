@@ -2,12 +2,22 @@ import {
   BrowserSession,
   BrowserToolbox,
   adapterFor,
+  MODEL_TOOLS,
   prepareForm,
   snapshotHash,
   type AtsAdapter,
   type PreparationReport,
 } from "@career-agent/browser";
 import { submitControlIdentity } from "@career-agent/browser/submission";
+import {
+  FORM_PREPARATION_PROMPT,
+  FormPreparationOutput,
+  orchestrate,
+  renderFormPreparation,
+  type AIProvider,
+  type OpenAIAgentsProvider,
+  type OrchestratorTool,
+} from "@career-agent/ai";
 import type { Store } from "@career-agent/db";
 import type { FileArtifactStore } from "@career-agent/documents";
 import {
@@ -15,7 +25,9 @@ import {
   PolicyError,
   RunBudget,
   type ApplicationService,
+  type PageQuestion,
   type ReviewSnapshot,
+  type RunLimits,
 } from "@career-agent/domain";
 import type { Logger } from "@career-agent/observability";
 
@@ -32,6 +44,16 @@ export interface PreparerOptions {
   sessionTimeoutMs: number;
   /** Tests only: allows the local fixture server. Never configurable at runtime. */
   allowPrivateNetwork?: boolean;
+  /** Phase 9 (BROWSER_MODEL_ASSIST): the OpenAI orchestrator continues forms the rule-based pass could not finish. */
+  assist?: ModelAssist | null;
+}
+
+export interface ModelAssist {
+  openai: OpenAIAgentsProvider;
+  claude: AIProvider | null;
+  maxDelegations: number;
+  limits: RunLimits;
+  secretValues: readonly string[];
 }
 
 export interface Live {
@@ -76,11 +98,18 @@ export class BrowserPreparer {
     const budget = new RunBudget(LIMITS(this.o.maxSteps));
     live.toolbox.budget = budget;
     const before = live.toolbox.log.length;
-    const report = await prepareForm(live.toolbox, live.adapter, {
-      syncFields: (questions) =>
+    const ports = {
+      syncFields: (questions: PageQuestion[]) =>
         this.o.applications.syncPageFields(this.o.ownerId, applicationId, questions, traceId)
           .answers,
-    });
+    };
+    let report = await prepareForm(live.toolbox, live.adapter, ports);
+    if (this.o.assist && (report.status === "stopped" || report.refused.length > 0)) {
+      await this.assisted(applicationId, live, report, traceId);
+      // The model's own verdict is never trusted: a fresh rule-based pass decides what happens next.
+      live.toolbox.budget = new RunBudget(LIMITS(this.o.maxSteps));
+      report = await prepareForm(live.toolbox, live.adapter, ports);
+    }
     let status: "ready" | "awaiting_input" | "handoff" =
       report.status === "ready"
         ? "ready"
@@ -136,6 +165,63 @@ export class BrowserPreparer {
       },
     });
     return { ...report, message };
+  }
+
+  /** One orchestrated pass with the 12 answer-bound tools (and delegate_to_claude). Failures are logged, not fatal. */
+  private async assisted(
+    applicationId: string,
+    live: Live,
+    report: PreparationReport,
+    traceId: string,
+  ): Promise<void> {
+    const assist = this.o.assist;
+    if (!assist) return;
+    const answers = this.o.applications
+      .answersFor(this.o.ownerId, applicationId)
+      .filter((a) => a.finalValue !== null && a.decision !== "prohibited")
+      .map((a) => ({ fieldId: a.field.id, label: a.field.label, category: a.field.category }));
+    const snapshot = live.toolbox.snapshot;
+    const pageSummary = snapshot
+      ? JSON.stringify(live.toolbox.modelView(snapshot)).slice(0, 30_000)
+      : "(not inspected yet)";
+    const tools: OrchestratorTool[] = MODEL_TOOLS.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input: t.input,
+      call: (input: unknown) => live.toolbox.call(t.name, input),
+    }));
+    try {
+      const out = await orchestrate({
+        openai: assist.openai,
+        claude: assist.claude,
+        maxDelegations: assist.maxDelegations,
+        tools,
+        taskType: "form_preparation",
+        prompt: FORM_PREPARATION_PROMPT,
+        messages: renderFormPreparation({
+          checklist: [report.message, ...report.checklist],
+          answers,
+          pageSummary,
+        }),
+        schema: FormPreparationOutput,
+        limits: assist.limits,
+        signal: AbortSignal.timeout(assist.limits.deadlineMs),
+        traceId,
+        secretValues: assist.secretValues,
+        onRun: (r) => {
+          this.o.store.providerRuns.record(r);
+        },
+      });
+      this.o.logger.info(
+        { status: out.value.status, toolCalls: out.toolCalls, delegations: out.delegations },
+        "model-assisted preparation finished",
+      );
+    } catch (err) {
+      this.o.logger.warn(
+        { errorClass: err instanceof Error && "code" in err ? String(err.code) : "error" },
+        "model-assisted preparation stopped",
+      );
+    }
   }
 
   /** The live window for an application, if this worker has one open. */

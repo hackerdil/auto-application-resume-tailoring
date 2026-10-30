@@ -285,6 +285,22 @@ export interface ProviderRunRepository {
   record(run: ProviderRunRecord): void;
   /** Sum of recorded costs since `sinceIso` (unknown costs count as 0). */
   costSince(sinceIso: string): number;
+  /** Usage per provider and task since `sinceIso` (Phase 9 usage page). */
+  usageSince(sinceIso: string): ProviderUsageRow[];
+}
+
+export interface ProviderUsageRow {
+  provider: string;
+  taskType: string;
+  calls: number;
+  errors: number;
+  fallbacks: number;
+  delegated: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Sum of known costs; `unpricedCalls` successful calls reported no cost. */
+  costUsd: number;
+  unpricedCalls: number;
 }
 
 export type ResumeStatus = "draft" | "needs_attention" | "approved" | "rejected";

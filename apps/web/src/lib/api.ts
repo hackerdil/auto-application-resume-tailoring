@@ -480,3 +480,39 @@ export const STATE_TEXT: Record<string, string> = {
   FAILED: "failed",
   WITHDRAWN: "withdrawn",
 };
+
+export interface ProvidersResponse {
+  mode: string;
+  providers: {
+    provider: string;
+    configured: boolean;
+    ok: boolean;
+    reason: string | null;
+    consecutiveFailures: number;
+    coolingDownUntil: string | null;
+    lastErrorCode: string | null;
+    lastSuccessAt: string | null;
+  }[];
+  limits: {
+    openaiMaxCostUsdPerRun: number;
+    claudeMaxCostUsdPerRun: number;
+    maxClaudeDelegationsPerRun: number;
+    openaiPricingConfigured: boolean;
+  };
+}
+
+export interface UsageResponse {
+  since: string;
+  rows: {
+    provider: string;
+    taskType: string;
+    calls: number;
+    errors: number;
+    fallbacks: number;
+    delegated: number;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    unpricedCalls: number;
+  }[];
+}

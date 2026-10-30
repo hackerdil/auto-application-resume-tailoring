@@ -40,6 +40,14 @@
 - `pnpm data:export [--out <file>]` writes a plaintext JSON export (mode 0600; it never overwrites an existing file). Default location: `DATA_DIR/exports/`. The UI's "Export my data" link downloads the same content.
 - `pnpm data:delete --confirm "DELETE MY DATA"` deletes the database (and WAL/SHM), the contents of `ARTIFACT_DIR`, `BROWSER_PROFILE_DIR`, `CLAUDE_WORKING_DIRECTORY`, and `DATA_DIR/exports`. It refuses root, home, working, and shallow directories. `.env` and keys are left alone.
 
+## AI providers
+
+- **OpenAI:** set `OPENAI_API_KEY` and `OPENAI_MODEL` (there is no default model). For cost tracking, also set `OPENAI_INPUT_USD_PER_MTOK` and `OPENAI_OUTPUT_USD_PER_MTOK` to your model's current prices.
+- **Claude:** runs through your own Claude Code login (run `claude` once and sign in) and counts against your plan's limits. Career Agent never reads browser cookies or web sessions. Sign-in is checked on first use; a failure appears on **AI & usage** and falls back to OpenAI in `hybrid`/`auto` mode.
+- **Mode:** `DEFAULT_PROVIDER_MODE` (`hybrid` by default). A provider that fails three times in a row is paused for a minute.
+- **Without any provider:** scoring, résumés, letters, and preparation all keep working rule-based.
+- **Model help with forms:** `BROWSER_MODEL_ASSIST=true` lets OpenAI continue forms the rule-based pass could not finish. It uses your OpenAI budget and stays within `BROWSER_MAX_STEPS` and `OPENAI_MAX_TURNS`.
+
 ## Still to document (Phase 10)
 
-Backup/restore, key rotation (`FieldCipher` supports key ids; the re-encryption job is not built yet), resolving `SUBMISSION_UNCERTAIN` applications, provider health and quota exhaustion, log/screenshot retention.
+Backup/restore, key rotation (`FieldCipher` supports key ids; the re-encryption job is not built yet), resolving `SUBMISSION_UNCERTAIN` applications, quota exhaustion procedures, log/screenshot retention.

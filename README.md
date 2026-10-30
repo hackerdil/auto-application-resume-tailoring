@@ -2,7 +2,7 @@
 
 A local-first, human-in-the-loop tool that helps **one person**, acting for themselves, find relevant jobs and prepare truthful applications. You review every application and approve it before it is submitted.
 
-> **Status: Phase 8 (approval and submission) complete.** Prepare an application per job, let Career Agent fill the employer's form in a separate browser window, review it, and approve. Only then does Career Agent press the form's submit button, once, after checking that nothing changed since your approval. Model-driven orchestration arrives in Phase 9. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+> **Status: Phase 9 (hybrid orchestration) complete.** OpenAI (via the Agents SDK) does the AI work and Claude (via the Claude Agent SDK and your Claude Code login) reviews résumé claims and takes over when OpenAI is unavailable. Every AI suggestion is checked against your verified facts, and everything also works without AI. You approve each application before Career Agent presses its submit button once. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## What it does
 
@@ -82,7 +82,7 @@ Open http://127.0.0.1:3000. Keep a copy of `DATA_ENCRYPTION_KEY`: without it, en
 - [Data model](docs/DATA_MODEL.md) · [Approval model](docs/APPROVAL_MODEL.md) · [Prompt security](docs/PROMPT_SECURITY.md)
 - [Operations](docs/OPERATIONS.md) · [User guide](docs/USER_GUIDE.md) (completed in Phase 10)
 
-Sections still to come as features land: OpenAI setup and cost controls, Claude subscription authentication and limits, provider fallback behavior, browser and approval flow, backup, and troubleshooting.
+Provider setup, limits, and fallback are in [docs/OPERATIONS.md](docs/OPERATIONS.md#ai-providers). Still to come (Phase 10): backup, troubleshooting.
 
 ## Responsible use
 
