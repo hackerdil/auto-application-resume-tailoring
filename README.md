@@ -122,3 +122,7 @@ You are responsible for following each job site's terms and for the truthfulness
 ## Security
 
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
+
+## License
+
+[MIT](LICENSE)
