@@ -19,6 +19,11 @@ const children = [
   spawn("node", ["--watch-path=apps/api/dist", "--watch-path=packages", "apps/api/dist/main.js"], {
     stdio: "inherit",
   }),
+  spawn(
+    "node",
+    ["--watch-path=apps/worker/dist", "--watch-path=packages", "apps/worker/dist/main.js"],
+    { stdio: "inherit" },
+  ),
   spawn("pnpm", ["--filter", "@career-agent/web", "dev"], { stdio: "inherit" }),
 ];
 const stop = () => {
